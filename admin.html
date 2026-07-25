@@ -4,10 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel Admin - Cadastro de Imóveis</title>
-  <!-- SDK do Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- SDK do AWS S3 / Cloudflare R2 -->
-  <script src="https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3/dist/s3.min.js"></script>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { background: #f4f5f7; padding: 20px; color: #333; }
@@ -106,22 +102,7 @@
 </div>
 
 <script>
-  // ========================================================
-  // CONFIGURAÇÕES (Substitua com suas chaves/credenciais)
-  // ========================================================
-  const SUPABASE_URL = "SUA_SUPABASE_URL";
-  const SUPABASE_ANON_KEY = "SUA_SUPABASE_ANON_KEY";
-
-  const R2_ACCOUNT_ID = "SEU_R2_ACCOUNT_ID";
-  const R2_ACCESS_KEY_ID = "SUA_R2_ACCESS_KEY_ID";
-  const R2_SECRET_ACCESS_KEY = "SUA_R2_SECRET_ACCESS_KEY";
-  const R2_BUCKET_NAME = "NOME_DO_SEU_BUCKET";
-  const R2_PUBLIC_URL = "https://pub-xxxx.r2.dev"; // Ou seu domínio personalizado apontado pro R2
-
-  // Inicializa Supabase
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // Exibe mensagem de status
+  // Exibe mensagens na interface
   function mostrarStatus(texto, tipo) {
     const el = document.getElementById('status');
     el.className = tipo;
@@ -129,42 +110,107 @@
     el.style.display = 'block';
   }
 
+  // Função para converter e otimizar qualquer imagem para WebP no navegador
+  async function otimizarImagemParaWebP(file, maxWidth = 1920, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Redimensiona proporcionalmente se exceder a largura máxima
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Falha ao converter imagem para WebP.'));
+              }
+            },
+            'image/webp',
+            quality
+          );
+        };
+
+        img.onerror = (err) => reject(err);
+      };
+
+      reader.onerror = (err) => reject(err);
+    });
+  }
+
+  // Listener de envio do formulário
   document.getElementById('formImovel').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnSalvar');
     btn.disabled = true;
 
     try {
-      mostrarStatus('1/2: Enviando imagens para o Cloudflare R2...', 'info');
-
       const files = document.getElementById('fotos').files;
-      const fotosUrls = [];
-
-      // 1. Upload de cada foto para o R2 via API REST Presigned / Direct S3
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `imoveis/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-
-        // Upload da imagem
-        const uploadUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${fileName}`;
-        
-        // Exemplo simplificado de URL final que será gravada no Supabase
-        const publicFileUrl = `${R2_PUBLIC_URL}/${fileName}`;
-
-        /*
-          Nota: Em ambiente real/produção, recomendamos usar Presigned URLs
-          geradas no backend ou Worker para não expor a Secret Key no front-end.
-        */
-        
-        // Simulação da URL salva
-        fotosUrls.push(publicFileUrl);
+      if (!files.length) {
+        throw new Error('Selecione pelo menos uma foto.');
       }
 
-      mostrarStatus('2/2: Salvando dados no Supabase...', 'info');
+      const fotosUrls = [];
 
-      // 2. Inserção dos dados na tabela 'imoveis'
-      const payload = {
+      // 1. Processa e envia cada imagem individualmente
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        mostrarStatus(`Otimizando e enviando imagem ${i + 1} de ${files.length}...`, 'info');
+
+        // Converte a imagem para WebP no navegador
+        const webpBlob = await otimizarImagemParaWebP(file);
+
+        // Pede a Presigned URL para a API backend
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: 'image/webp'
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao obter URL pré-assinada.');
+
+        // Envia o arquivo otimizado diretamente para o Cloudflare R2
+        const uploadRes = await fetch(data.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'image/webp' },
+          body: webpBlob
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`Erro ao enviar foto ${i + 1} para o R2.`);
+        }
+
+        // Guarda a URL pública gerada
+        fotosUrls.push(data.publicUrl);
+      }
+
+      mostrarStatus('Gravando dados do imóvel...', 'info');
+
+      // 2. Prepara os dados do imóvel com a lista de URLs das fotos
+      const imovelData = {
         titulo: document.getElementById('titulo').value,
         descricao: document.getElementById('descricao').value,
         tipo: document.getElementById('tipo').value,
@@ -178,11 +224,17 @@
         fotos: fotosUrls
       };
 
-      const { data, error } = await supabase.from('imoveis').insert([payload]);
+      // Se quiser que a própria API salve no Supabase de forma segura:
+      const saveRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imovelData: imovelData
+        })
+      });
 
-      if (error) throw error;
-
-      mostrarStatus('Imóvel e fotos cadastrados com sucesso!', 'success');
+      // Caso a rota api/upload processe, concluímos com sucesso
+      mostrarStatus('Imóvel e fotos em WebP cadastrados com sucesso!', 'success');
       document.getElementById('formImovel').reset();
 
     } catch (err) {
