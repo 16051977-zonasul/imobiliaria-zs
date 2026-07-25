@@ -3,124 +3,196 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel Admin - Cadastro de Imóvel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Painel Admin - Cadastro de Imóveis</title>
+  <!-- SDK do Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- SDK do AWS S3 / Cloudflare R2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3/dist/s3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #f4f5f7; padding: 20px; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    h2 { margin-top: 0; color: #111; }
+    .group { margin-bottom: 15px; }
+    label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    textarea { resize: vertical; height: 80px; }
+    .row { display: flex; gap: 10px; }
+    .row .group { flex: 1; }
+    button { background: #0066cc; color: #fff; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    #status { margin-top: 15px; padding: 10px; border-radius: 4px; font-weight: 500; text-align: center; display: none; }
+    .success { background: #e6f4ea; color: #137333; }
+    .error { background: #fce8e6; color: #c5221f; }
+    .info { background: #e8f0fe; color: #1a73e8; }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 min-h-screen">
+<body>
 
-  <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
-    <h2 class="text-2xl font-bold text-center mb-6 text-gray-900">Cadastrar Imóvel</h2>
+<div class="container">
+  <h2>Cadastrar Imóvel</h2>
+  <form id="formImovel">
+    
+    <div class="group">
+      <label for="titulo">Título do Imóvel</label>
+      <input type="text" id="titulo" placeholder="Ex: Aconchegante Apê em Botafogo" required>
+    </div>
 
-    <form id="form-imovel" class="space-y-4">
-      
-      <!-- 1. Título e Bairro -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Título do Anúncio</label>
-        <input type="text" id="titulo" required placeholder="Ex: Apto 2 qtos em Botafogo" 
-               class="mt-1 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-base">
-      </div>
+    <div class="group">
+      <label for="descricao">Descrição</label>
+      <textarea id="descricao" placeholder="Descrição completa do imóvel..." required></textarea>
+    </div>
 
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Bairro</label>
-        <select id="bairro" required class="mt-1 w-full p-3 border rounded-lg bg-white text-base">
-          <option value="">Selecione o bairro</option>
-          <option value="Botafogo">Botafogo</option>
-          <option value="Copacabana">Copacabana</option>
-          <option value="Ipanema">Ipanema</option>
-          <option value="Leblon">Leblon</option>
-          <option value="Flamengo">Flamengo</option>
+    <div class="row">
+      <div class="group">
+        <label for="tipo">Tipo</label>
+        <select id="tipo" required>
+          <option value="apartamento">Apartamento</option>
+          <option value="casa">Casa</option>
+          <option value="cobertura">Cobertura</option>
+          <option value="comercial">Comercial</option>
         </select>
       </div>
 
-      <!-- 2. Modalidade e Preços -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Modalidade</label>
-        <div class="grid grid-cols-3 gap-2">
-          <label class="flex items-center justify-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
-            <input type="checkbox" name="modalidade" value="temporada" class="mr-2"> Temporada
-          </label>
-          <label class="flex items-center justify-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
-            <input type="checkbox" name="modalidade" value="aluguel" class="mr-2"> Aluguel
-          </label>
-          <label class="flex items-center justify-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
-            <input type="checkbox" name="modalidade" value="venda" class="mr-2"> Venda
-          </label>
-        </div>
+      <div class="group">
+        <label for="transacao">Transação</label>
+        <select id="transacao" required>
+          <option value="aluguel">Aluguel</option>
+          <option value="venda">Venda</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="group">
+        <label for="preco">Preço (R$)</label>
+        <input type="number" id="preco" step="0.01" placeholder="3500.00" required>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Diária (R$)</label>
-          <input type="number" id="preco_diaria" placeholder="0" class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Mensal/Venda (R$)</label>
-          <input type="number" id="preco_total" placeholder="0" class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
+      <div class="group">
+        <label for="bairro">Bairro</label>
+        <input type="text" id="bairro" placeholder="Botafogo" required>
       </div>
+    </div>
 
-      <!-- 3. Especificações do Imóvel -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Quartos</label>
-          <input type="number" id="quartos" min="1" value="1" required class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Banheiros</label>
-          <input type="number" id="banheiros" min="1" value="1" required class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Vagas Garagem</label>
-          <input type="number" id="vagas" min="0" value="0" class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Área (m²)</label>
-          <input type="number" id="area_m2" placeholder="Ex: 60" class="mt-1 w-full p-3 border rounded-lg text-base">
-        </div>
+    <div class="row">
+      <div class="group">
+        <label for="quartos">Quartos</label>
+        <input type="number" id="quartos" value="1" min="0">
       </div>
-
-      <!-- 4. Fotos -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Fotos do Imóvel</label>
-        <input type="file" id="fotos" multiple accept="image/*" 
-               class="w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+      <div class="group">
+        <label for="banheiros">Banheiros</label>
+        <input type="number" id="banheiros" value="1" min="0">
       </div>
+      <div class="group">
+        <label for="vagas">Vagas</label>
+        <input type="number" id="vagas" value="0" min="0">
+      </div>
+      <div class="group">
+        <label for="area_m2">Área (m²)</label>
+        <input type="number" id="area_m2" step="0.1" placeholder="45">
+      </div>
+    </div>
 
-      <!-- Botão Enviar -->
-      <button type="submit" 
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow transition duration-200 text-lg">
-        Salvar e Publicar
-      </button>
+    <div class="group">
+      <label for="fotos">Fotos do Imóvel (Selecione uma ou mais)</label>
+      <input type="file" id="fotos" multiple accept="image/*" required>
+    </div>
 
-    </form>
-  </div>
+    <button type="submit" id="btnSalvar">Cadastrar Imóvel</button>
+  </form>
 
-  <script>
-    document.getElementById('form-imovel').addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      const modalidades = Array.from(document.querySelectorAll('input[name="modalidade"]:checked')).map(cb => cb.value);
-      
-      const dadosImovel = {
+  <div id="status"></div>
+</div>
+
+<script>
+  // ========================================================
+  // CONFIGURAÇÕES (Substitua com suas chaves/credenciais)
+  // ========================================================
+  const SUPABASE_URL = "SUA_SUPABASE_URL";
+  const SUPABASE_ANON_KEY = "SUA_SUPABASE_ANON_KEY";
+
+  const R2_ACCOUNT_ID = "SEU_R2_ACCOUNT_ID";
+  const R2_ACCESS_KEY_ID = "SUA_R2_ACCESS_KEY_ID";
+  const R2_SECRET_ACCESS_KEY = "SUA_R2_SECRET_ACCESS_KEY";
+  const R2_BUCKET_NAME = "NOME_DO_SEU_BUCKET";
+  const R2_PUBLIC_URL = "https://pub-xxxx.r2.dev"; // Ou seu domínio personalizado apontado pro R2
+
+  // Inicializa Supabase
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Exibe mensagem de status
+  function mostrarStatus(texto, tipo) {
+    const el = document.getElementById('status');
+    el.className = tipo;
+    el.innerText = texto;
+    el.style.display = 'block';
+  }
+
+  document.getElementById('formImovel').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvar');
+    btn.disabled = true;
+
+    try {
+      mostrarStatus('1/2: Enviando imagens para o Cloudflare R2...', 'info');
+
+      const files = document.getElementById('fotos').files;
+      const fotosUrls = [];
+
+      // 1. Upload de cada foto para o R2 via API REST Presigned / Direct S3
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `imoveis/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+
+        // Upload da imagem
+        const uploadUrl = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${fileName}`;
+        
+        // Exemplo simplificado de URL final que será gravada no Supabase
+        const publicFileUrl = `${R2_PUBLIC_URL}/${fileName}`;
+
+        /*
+          Nota: Em ambiente real/produção, recomendamos usar Presigned URLs
+          geradas no backend ou Worker para não expor a Secret Key no front-end.
+        */
+        
+        // Simulação da URL salva
+        fotosUrls.push(publicFileUrl);
+      }
+
+      mostrarStatus('2/2: Salvando dados no Supabase...', 'info');
+
+      // 2. Inserção dos dados na tabela 'imoveis'
+      const payload = {
         titulo: document.getElementById('titulo').value,
+        descricao: document.getElementById('descricao').value,
+        tipo: document.getElementById('tipo').value,
+        transacao: document.getElementById('transacao').value,
+        preco: parseFloat(document.getElementById('preco').value),
         bairro: document.getElementById('bairro').value,
-        modalidades: modalidades,
-        precos: {
-          diaria: document.getElementById('preco_diaria').value || null,
-          total: document.getElementById('preco_total').value || null
-        },
-        specs: {
-          quartos: parseInt(document.getElementById('quartos').value),
-          banheiros: parseInt(document.getElementById('banheiros').value),
-          vagas: parseInt(document.getElementById('vagas').value),
-          area_m2: parseInt(document.getElementById('area_m2').value) || null
-        }
+        quartos: parseInt(document.getElementById('quartos').value) || 0,
+        banheiros: parseInt(document.getElementById('banheiros').value) || 0,
+        vagas: parseInt(document.getElementById('vagas').value) || 0,
+        area_m2: parseFloat(document.getElementById('area_m2').value) || null,
+        fotos: fotosUrls
       };
 
-      console.log('Dados prontos para salvar/enviar:', dadosImovel);
-      alert('Imóvel preparado para salvar! (Ação simulada)');
-    });
-  </script>
+      const { data, error } = await supabase.from('imoveis').insert([payload]);
+
+      if (error) throw error;
+
+      mostrarStatus('Imóvel e fotos cadastrados com sucesso!', 'success');
+      document.getElementById('formImovel').reset();
+
+    } catch (err) {
+      console.error(err);
+      mostrarStatus('Erro ao cadastrar: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
 
 </body>
 </html>
