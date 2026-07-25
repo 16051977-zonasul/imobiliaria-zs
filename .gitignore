@@ -1,0 +1,10 @@
+# Arquivo de variáveis de ambiente (contém chaves secretas)
+.env
+.env.local
+
+# Pasta de dependências do Node.js
+node_modules/
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
