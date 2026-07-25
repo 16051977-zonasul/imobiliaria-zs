@@ -1,7 +1,8 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createClient } from '@supabase/supabase-js';
 
-// Inicializa o cliente do Cloudflare R2 usando a SDK S3
+// Inicializa o cliente do Cloudflare R2
 const r2Client = new S3Client({
   region: 'auto',
   endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -26,38 +27,48 @@ export default async function handler(req, res) {
     const { filename, contentType, imovelData } = req.body;
 
     if (!filename || !contentType) {
-      return res.status(400).json({ error: 'Nome do arquivo e tipo de conteúdo são obrigatórios' });
+      return res.status(400).json({ error: 'Nome do arquivo e contentType são obrigatórios' });
     }
 
-    // 1. Gera nome único para o arquivo no R2
-    const fileKey = `imoveis/${Date.now()}-${filename}`;
+    // 1. Gera nome único para o arquivo no R2 (garantindo extensão .webp)
+    const cleanFilename = filename.replace(/\.[^/.]+$/, "") + ".webp";
+    const fileKey = `imoveis/${Date.now()}-${cleanFilename}`;
 
-    // 2. Monta a URL pública do arquivo
+    // 2. Cria o comando PutObject para upload no R2
+    const command = new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: fileKey,
+      ContentType: contentType || 'image/webp',
+    });
+
+    // 3. Gera a URL pré-assinada válida por 5 minutos (300 segundos)
+    const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 300 });
+
+    // 4. Monta a URL pública final onde a imagem ficará acessível
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${fileKey}`;
 
-    // 3. Salva os dados do imóvel e a URL da foto no Supabase
-    const { data: imovel, error: dbError } = await supabase
-      .from('imoveis')
-      .insert([
-        {
-          ...imovelData,
-          foto_url: publicUrl,
-        },
-      ])
-      .select();
+    // 5. Registra o imóvel no Supabase caso os dados tenham sido enviados
+    let imovelSalvo = null;
+    if (imovelData) {
+      const { data, error: dbError } = await supabase
+        .from('imoveis')
+        .insert([{ ...imovelData, foto_url: publicUrl }])
+        .select();
 
-    if (dbError) throw dbError;
+      if (dbError) throw dbError;
+      imovelSalvo = data[0];
+    }
 
     return res.status(200).json({
       success: true,
-      message: 'Imóvel registrado com sucesso!',
-      fileKey,
+      uploadUrl,
       publicUrl,
-      imovel: imovel[0],
+      fileKey,
+      imovel: imovelSalvo,
     });
 
   } catch (error) {
-    console.error('Erro no processamento:', error);
+    console.error('Erro no upload.js:', error);
     return res.status(500).json({ error: error.message || 'Erro interno no servidor' });
   }
 }
