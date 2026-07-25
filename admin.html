@@ -171,7 +171,7 @@
 
       const fotosUrls = [];
 
-      // 1. Processa e envia cada imagem individualmente
+      // 1. Processa e envia cada imagem individualmente para o R2
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         mostrarStatus(`Otimizando e enviando imagem ${i + 1} de ${files.length}...`, 'info');
@@ -179,7 +179,7 @@
         // Converte a imagem para WebP no navegador
         const webpBlob = await otimizarImagemParaWebP(file);
 
-        // Pede a Presigned URL para a API backend
+        // Pede a Presigned URL para a API de upload no R2
         const res = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -220,20 +220,20 @@
         quartos: parseInt(document.getElementById('quartos').value) || 0,
         banheiros: parseInt(document.getElementById('banheiros').value) || 0,
         vagas: parseInt(document.getElementById('vagas').value) || 0,
-        area_m2: parseFloat(document.getElementById('area_m2').value) || null,
+        area_m2: parseFloat(document.getElementById('area_m2').value) || 0,
         fotos: fotosUrls
       };
 
-      // Se quiser que a própria API salve no Supabase de forma segura:
-      const saveRes = await fetch('/api/upload', {
+      // 3. Salva no Supabase via rota dedicada /api/salvar-imovel
+      const saveRes = await fetch('/api/salvar-imovel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imovelData: imovelData
-        })
+        body: JSON.stringify(imovelData)
       });
 
-      // Caso a rota api/upload processe, concluímos com sucesso
+      const saveData = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveData.error || 'Erro ao salvar imóvel no Supabase.');
+
       mostrarStatus('Imóvel e fotos em WebP cadastrados com sucesso!', 'success');
       document.getElementById('formImovel').reset();
 

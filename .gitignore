@@ -8,3 +8,5 @@ node_modules/
 # Arquivos do sistema operacional
 .DS_Store
 Thumbs.db
+.vercel
+._*
