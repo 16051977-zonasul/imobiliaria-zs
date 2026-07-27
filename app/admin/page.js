@@ -47,7 +47,7 @@ export default function AdminPage() {
     titulo: '',
     descricao: '',
     tipo: 'Apartamento',
-    transacao: 'Venda',
+    transacao: 'Vender',
     preco: '',
     condominio: '',
     iptu: '',
@@ -245,8 +245,9 @@ export default function AdminPage() {
                     onChange={handleChange}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="Venda">Venda</option>
-                    <option value="Aluguel">Aluguel</option>
+                    <option value="Vender">Vender</option>
+                    <option value="Alugar">Alugar</option>
+                    <option value="Temporada">Temporada</option>
                   </select>
                 </div>
               </div>

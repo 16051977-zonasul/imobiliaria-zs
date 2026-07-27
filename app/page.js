@@ -86,7 +86,7 @@ export default function CatalogPage() {
         titulo: 'Apartamento de Alto Padrão Quadrilátero de Ipanema',
         descricao: 'Amplo apartamento com vista lateral para o mar, reformado por arquiteto renomado.',
         tipo: 'Apartamento',
-        transacao: 'Venda',
+        transacao: 'Vender',
         preco: 2850000,
         condominio: 2200,
         iptu: 650,
@@ -106,7 +106,7 @@ export default function CatalogPage() {
         titulo: 'Cobertura Duplex com Piscina e Vista Leblon',
         descricao: 'Exclusiva cobertura duplex a 2 quadras da praia com terraço gourmet privativo.',
         tipo: 'Cobertura',
-        transacao: 'Venda',
+        transacao: 'Vender',
         preco: 6200000,
         condominio: 4100,
         iptu: 1200,
@@ -125,7 +125,7 @@ export default function CatalogPage() {
         titulo: 'Studio Moderno Decorado Próximo ao Metrô',
         descricao: 'Excelente opção para morar ou investir em locação por temporada.',
         tipo: 'Studio',
-        transacao: 'Aluguel',
+        transacao: 'Alugar',
         preco: 4500,
         condominio: 680,
         iptu: 150,
@@ -144,7 +144,7 @@ export default function CatalogPage() {
         titulo: 'Imóvel Ensolarado com Vista Cristo Redentor',
         descricao: 'Apartamento aconchegante cercado pelo verde do Jardim Botânico.',
         tipo: 'Apartamento',
-        transacao: 'Venda',
+        transacao: 'Vender',
         preco: 1750000,
         condominio: 1350,
         iptu: 380,
@@ -155,6 +155,24 @@ export default function CatalogPage() {
         area_m2: 92,
         fotos: [
           'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'
+        ]
+      },
+      {
+        id: 105,
+        titulo: 'Apartamento de Temporada Vista Mar Copacabana',
+        descricao: 'Lindo apartamento totalmente equipado para estadias curtas a 50 metros do Posto 4.',
+        tipo: 'Apartamento',
+        transacao: 'Temporada',
+        preco: 650,
+        condominio: 0,
+        iptu: 0,
+        bairro: 'Copacabana',
+        quartos: 2,
+        banheiros: 1,
+        vagas: 1,
+        area_m2: 65,
+        fotos: [
+          'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
         ]
       }
     ];
@@ -167,7 +185,10 @@ export default function CatalogPage() {
       (imovel.tipo && imovel.tipo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (imovel.descricao && imovel.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchTransacao = selectedTransacao === 'Todos' || imovel.transacao === selectedTransacao;
+    const matchTransacao = selectedTransacao === 'Todos' || 
+      imovel.transacao === selectedTransacao ||
+      (selectedTransacao === 'Vender' && (imovel.transacao === 'Venda' || imovel.transacao === 'Vender')) ||
+      (selectedTransacao === 'Alugar' && (imovel.transacao === 'Aluguel' || imovel.transacao === 'Alugar'));
     const matchTipo = selectedTipo === 'Todos' || imovel.tipo === selectedTipo;
     const matchBairro = selectedBairro === 'Todos' || imovel.bairro === selectedBairro;
     const matchQuartos = selectedQuartos === 'Todos' || (imovel.quartos && imovel.quartos >= parseInt(selectedQuartos, 10));
@@ -275,8 +296,9 @@ export default function CatalogPage() {
               className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
             >
               <option value="Todos">Todas as Transações</option>
-              <option value="Venda">Venda</option>
-              <option value="Aluguel">Aluguel</option>
+              <option value="Vender">Vender</option>
+              <option value="Alugar">Alugar</option>
+              <option value="Temporada">Temporada</option>
             </select>
           </div>
 
@@ -392,9 +414,13 @@ export default function CatalogPage() {
                   {/* Badges */}
                   <div className="absolute top-3 left-3 flex items-center gap-2">
                     <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider ${
-                      imovel.transacao === 'Aluguel' ? 'bg-indigo-600/90 text-white' : 'bg-emerald-600/90 text-white'
+                      imovel.transacao === 'Temporada' 
+                        ? 'bg-amber-600/90 text-white' 
+                        : (imovel.transacao === 'Alugar' || imovel.transacao === 'Aluguel')
+                          ? 'bg-indigo-600/90 text-white' 
+                          : 'bg-emerald-600/90 text-white'
                     }`}>
-                      {imovel.transacao || 'Venda'}
+                      {imovel.transacao || 'Vender'}
                     </span>
                     <span className="bg-slate-900/90 backdrop-blur-md text-slate-200 text-[11px] px-2.5 py-1 rounded-lg font-medium border border-slate-700/60">
                       {imovel.tipo || 'Apartamento'}
@@ -423,7 +449,8 @@ export default function CatalogPage() {
 
                   <p className="text-2xl font-black text-emerald-400 mb-4">
                     {precoFormatted}
-                    {imovel.transacao === 'Aluguel' && <span className="text-xs text-slate-400 font-normal"> / mês</span>}
+                    {(imovel.transacao === 'Alugar' || imovel.transacao === 'Aluguel') && <span className="text-xs text-slate-400 font-normal"> / mês</span>}
+                    {imovel.transacao === 'Temporada' && <span className="text-xs text-slate-400 font-normal"> / diária</span>}
                   </p>
 
                   {/* Features details */}
