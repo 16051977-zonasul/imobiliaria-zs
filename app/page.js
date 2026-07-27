@@ -15,11 +15,11 @@ import {
   ChevronRight,
   Filter,
   Building,
-  Tag
+  Tag,
+  Home
 } from 'lucide-react';
 
 const BAIRROS_ZONA_SUL = [
-  'Todos',
   'Copacabana',
   'Ipanema',
   'Leblon',
@@ -39,9 +39,12 @@ export default function CatalogPage() {
   const [imoveis, setImoveis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBairro, setSelectedBairro] = useState('Todos');
-  const [selectedTipo, setSelectedTipo] = useState('Todos');
+  
+  // 4 Select Dropdown Filters
   const [selectedTransacao, setSelectedTransacao] = useState('Todos');
+  const [selectedTipo, setSelectedTipo] = useState('Todos');
+  const [selectedBairro, setSelectedBairro] = useState('Todos');
+  const [selectedQuartos, setSelectedQuartos] = useState('Todos');
 
   // Estado da Galeria Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,7 +64,7 @@ export default function CatalogPage() {
         .order('id', { ascending: false });
 
       if (error) {
-        console.warn('Supabase fetch error, usando dados iniciais se necessário:', error);
+        console.warn('Supabase fetch error, usando dados iniciais:', error);
         setImoveis(getMockImoveis());
       } else if (data && data.length > 0) {
         setImoveis(data);
@@ -157,18 +160,19 @@ export default function CatalogPage() {
     ];
   }
 
-  // Filtragem dos Imóveis
+  // Filtragem dos Imóveis com base nos 4 Selects e Busca
   const imoveisFiltrados = imoveis.filter((imovel) => {
     const matchSearch = searchTerm === '' || 
-      (imovel.titulo && imovel.titulo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (imovel.bairro && imovel.bairro.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (imovel.tipo && imovel.tipo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (imovel.descricao && imovel.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchBairro = selectedBairro === 'Todos' || imovel.bairro === selectedBairro;
-    const matchTipo = selectedTipo === 'Todos' || imovel.tipo === selectedTipo;
     const matchTransacao = selectedTransacao === 'Todos' || imovel.transacao === selectedTransacao;
+    const matchTipo = selectedTipo === 'Todos' || imovel.tipo === selectedTipo;
+    const matchBairro = selectedBairro === 'Todos' || imovel.bairro === selectedBairro;
+    const matchQuartos = selectedQuartos === 'Todos' || (imovel.quartos && imovel.quartos >= parseInt(selectedQuartos, 10));
 
-    return matchSearch && matchBairro && matchTipo && matchTransacao;
+    return matchSearch && matchTransacao && matchTipo && matchBairro && matchQuartos;
   });
 
   function abrirGaleria(fotos) {
@@ -188,11 +192,19 @@ export default function CatalogPage() {
     });
   }
 
+  function resetFiltros() {
+    setSearchTerm('');
+    setSelectedTransacao('Todos');
+    setSelectedTipo('Todos');
+    setSelectedBairro('Todos');
+    setSelectedQuartos('Todos');
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
       {/* Hero Header */}
-      <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-10 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
+      <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-8 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-500/10 via-transparent to-transparent pointer-events-none" />
         
         <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-4">
@@ -214,7 +226,7 @@ export default function CatalogPage() {
           <Search className="absolute left-4 w-5 h-5 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Busque por rua, bairro (ex: Ipanema), tipo ou palavra-chave..."
+            placeholder="Busque por rua, bairro ou palavra-chave..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl pl-12 pr-4 py-4 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm shadow-xl backdrop-blur-md transition-all"
@@ -222,7 +234,7 @@ export default function CatalogPage() {
           {searchTerm && (
             <button 
               onClick={() => setSearchTerm('')}
-              className="absolute right-4 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg"
+              className="absolute right-4 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg"
             >
               Limpar
             </button>
@@ -230,65 +242,100 @@ export default function CatalogPage() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 mb-8 backdrop-blur-md space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-800/80 pb-4">
-          <div className="flex items-center gap-2 text-slate-300 font-semibold text-sm">
+      {/* Select Dropdown Filters Bar (Transacao | Tipo | Bairro | Quartos) */}
+      <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-6 mb-8 backdrop-blur-md shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
             <Filter className="w-4 h-4 text-sky-400" />
-            <span>Filtrar por Bairro:</span>
+            <span>Filtros de Seleção</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5" />
-              Transação:
-            </span>
+          {(selectedTransacao !== 'Todos' || selectedTipo !== 'Todos' || selectedBairro !== 'Todos' || selectedQuartos !== 'Todos' || searchTerm !== '') && (
+            <button
+              onClick={resetFiltros}
+              className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline underline-offset-4"
+            >
+              Limpar Filtros
+            </button>
+          )}
+        </div>
+
+        {/* Grid of 4 Select Dropdowns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* 1. Transação */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <Tag className="w-3.5 h-3.5 text-sky-400" />
+              Transação
+            </label>
             <select
               value={selectedTransacao}
               onChange={(e) => setSelectedTransacao(e.target.value)}
-              className="bg-slate-800 text-slate-200 border border-slate-700 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
             >
-              <option value="Todos">Todas</option>
+              <option value="Todos">Todas as Transações</option>
               <option value="Venda">Venda</option>
               <option value="Aluguel">Aluguel</option>
             </select>
+          </div>
 
-            <span className="text-xs text-slate-400 flex items-center gap-1 ml-2">
-              <Building className="w-3.5 h-3.5" />
-              Tipo:
-            </span>
+          {/* 2. Tipo */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <Building className="w-3.5 h-3.5 text-sky-400" />
+              Tipo de Imóvel
+            </label>
             <select
               value={selectedTipo}
               onChange={(e) => setSelectedTipo(e.target.value)}
-              className="bg-slate-800 text-slate-200 border border-slate-700 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
             >
-              <option value="Todos">Todos</option>
+              <option value="Todos">Todos os Tipos</option>
               <option value="Apartamento">Apartamento</option>
               <option value="Cobertura">Cobertura</option>
               <option value="Casa">Casa</option>
               <option value="Studio">Studio</option>
             </select>
           </div>
-        </div>
 
-        {/* Bairros Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          {BAIRROS_ZONA_SUL.map((bairro) => {
-            const isSelected = selectedBairro === bairro;
-            return (
-              <button
-                key={bairro}
-                onClick={() => setSelectedBairro(bairro)}
-                className={`whitespace-nowrap px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 font-semibold'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-              >
-                {bairro}
-              </button>
-            );
-          })}
+          {/* 3. Bairro */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <MapPin className="w-3.5 h-3.5 text-sky-400" />
+              Bairro
+            </label>
+            <select
+              value={selectedBairro}
+              onChange={(e) => setSelectedBairro(e.target.value)}
+              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+            >
+              <option value="Todos">Todos os Bairros da Zona Sul</option>
+              {BAIRROS_ZONA_SUL.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Quartos */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <Bed className="w-3.5 h-3.5 text-sky-400" />
+              Quartos
+            </label>
+            <select
+              value={selectedQuartos}
+              onChange={(e) => setSelectedQuartos(e.target.value)}
+              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+            >
+              <option value="Todos">Qualquer quant. de quartos</option>
+              <option value="1">1+ Quarto</option>
+              <option value="2">2+ Quartos</option>
+              <option value="3">3+ Quartos</option>
+              <option value="4">4+ Quartos</option>
+            </select>
+          </div>
+
         </div>
       </div>
 
@@ -311,12 +358,12 @@ export default function CatalogPage() {
         </div>
       ) : imoveisFiltrados.length === 0 ? (
         <div className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-3xl">
-          <p className="text-slate-400 text-base mb-2">Nenhum imóvel encontrado com os filtros selecionados.</p>
+          <p className="text-slate-400 text-base mb-3">Nenhum imóvel encontrado com os filtros selecionados.</p>
           <button 
-            onClick={() => { setSearchTerm(''); setSelectedBairro('Todos'); setSelectedTipo('Todos'); setSelectedTransacao('Todos'); }}
+            onClick={resetFiltros}
             className="text-xs text-sky-400 hover:underline font-semibold"
           >
-            Resetar todos os filtros
+            Resetar filtros
           </button>
         </div>
       ) : (
@@ -336,7 +383,7 @@ export default function CatalogPage() {
                 <div className="relative h-60 w-full overflow-hidden bg-slate-950">
                   <img
                     src={capa}
-                    alt={imovel.titulo}
+                    alt={`${imovel.tipo || 'Imóvel'} em ${imovel.bairro || 'Zona Sul'}`}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
                   />
@@ -369,8 +416,9 @@ export default function CatalogPage() {
                     <span>{imovel.bairro || 'Zona Sul'}</span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white mb-2 line-clamp-2 leading-snug group-hover:text-sky-300 transition-colors">
-                    {imovel.titulo}
+                  {/* Nome limpo e direto no formato Tipo em Bairro */}
+                  <h3 className="text-base font-bold text-white mb-2 group-hover:text-sky-300 transition-colors">
+                    {imovel.tipo || 'Imóvel'} em {imovel.bairro || 'Zona Sul'}
                   </h3>
 
                   <p className="text-2xl font-black text-emerald-400 mb-4">
