@@ -1,27 +1,29 @@
 {
   "name": "imobiliaria-zs",
   "version": "1.0.0",
-  "description": "",
-  "main": "._test-connection.js",
+  "description": "Plataforma Imobiliária Tô Aqui No Rio - Zona Sul do Rio de Janeiro",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/16051977-zonasul/imobiliaria-zs.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/16051977-zonasul/imobiliaria-zs/issues"
-  },
-  "homepage": "https://github.com/16051977-zonasul/imobiliaria-zs#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1095.0",
-    "@aws-sdk/s3-request-presigner": "^3.1095.0",
-    "@supabase/supabase-js": "^2.110.8",
-    "dotenv": "^17.4.2"
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@aws-sdk/s3-request-presigner": "^3.750.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^16.4.7",
+    "lucide-react": "^0.475.0",
+    "next": "^15.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0"
   }
 }

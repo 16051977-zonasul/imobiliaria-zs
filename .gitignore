@@ -5,6 +5,9 @@
 # Pasta de dependências do Node.js
 node_modules/
 
+# Next.js build
+.next/
+
 # Arquivos do sistema operacional
 .DS_Store
 Thumbs.db
