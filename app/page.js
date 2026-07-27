@@ -224,45 +224,6 @@ export default function CatalogPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
-      {/* Hero Header */}
-      <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-8 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-500/10 via-transparent to-transparent pointer-events-none" />
-        
-        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-4">
-          <MapPin className="w-3.5 h-3.5" />
-          Exclusividade na Zona Sul do Rio
-        </span>
-
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-4 leading-tight">
-          Encontre seu próximo imóvel em <br />
-          <span className="gradient-text">Copacabana, Ipanema e Leblon</span>
-        </h1>
-
-        <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
-          Catálogo atualizado diariamente com os melhores apartamentos, coberturas e imóveis de alto padrão na Zona Sul carioca.
-        </p>
-
-        {/* Search Bar */}
-        <div className="max-w-3xl mx-auto relative flex items-center">
-          <Search className="absolute left-4 w-5 h-5 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Busque por rua, bairro ou palavra-chave..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl pl-12 pr-4 py-4 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm shadow-xl backdrop-blur-md transition-all"
-          />
-          {searchTerm && (
-            <button 
-              onClick={() => setSearchTerm('')}
-              className="absolute right-4 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Select Dropdown Filters Bar (Transacao | Tipo | Bairro | Quartos) */}
       <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-6 mb-8 backdrop-blur-md shadow-lg">
         <div className="flex items-center justify-between mb-4">
@@ -358,6 +319,45 @@ export default function CatalogPage() {
             </select>
           </div>
 
+        </div>
+      </div>
+
+      {/* Hero Header */}
+      <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-8 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-500/10 via-transparent to-transparent pointer-events-none" />
+        
+        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-4">
+          <MapPin className="w-3.5 h-3.5" />
+          Exclusividade na Zona Sul do Rio
+        </span>
+
+        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-4 leading-tight">
+          Encontre seu próximo imóvel em <br />
+          <span className="gradient-text">Copacabana, Ipanema e Leblon</span>
+        </h1>
+
+        <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
+          Catálogo atualizado diariamente com os melhores apartamentos, coberturas e imóveis de alto padrão na Zona Sul carioca.
+        </p>
+
+        {/* Search Bar */}
+        <div className="max-w-3xl mx-auto relative flex items-center">
+          <Search className="absolute left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Busque por rua, bairro ou palavra-chave..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl pl-12 pr-4 py-4 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm shadow-xl backdrop-blur-md transition-all"
+          />
+          {searchTerm && (
+            <button 
+              onClick={() => setSearchTerm('')}
+              className="absolute right-4 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg"
+            >
+              Limpar
+            </button>
+          )}
         </div>
       </div>
 
