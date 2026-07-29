@@ -16,24 +16,23 @@ export async function POST(request) {
     const body = await request.json();
     const { id } = body;
 
-    if (!id && id !== 0) {
+    if (!id) {
       return NextResponse.json(
         { error: 'ID do imóvel não foi informado.' },
         { status: 400 }
       );
     }
 
-    // 1. Tratar o Tipo Correto do id (Number se for numérico, String se for UUID/text)
-    const isNumeric = !isNaN(Number(id)) && String(id).trim() !== '';
-    const idCorreto = isNumeric ? Number(id) : String(id).trim();
+    // 1. Tratar o ID estritamente como String/UUID
+    const idUUID = String(id).trim();
 
-    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão. ID Bruto:`, id, `| Parsed:`, idCorreto, `| Tipo:`, typeof idCorreto);
+    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão por UUID: "${idUUID}"`);
 
     // 1.1 Busca as fotos salvas do imóvel no Supabase antes do DELETE
     const { data: imovel } = await supabaseAdmin
       .from('imoveis')
       .select('id, fotos')
-      .eq('id', idCorreto)
+      .eq('id', idUUID)
       .maybeSingle();
 
     // 2. Se houver fotos no R2, realiza a exclusão física no bucket R2 via AWS SDK
@@ -42,24 +41,24 @@ export async function POST(request) {
       await deleteR2Objects(imovel.fotos);
     }
 
-    // 3. Executa a exclusão da linha na tabela imoveis no Supabase via Admin Client
+    // 3. Executa a exclusão da linha na tabela imoveis no Supabase via Admin Client usando UUID
     const { error: deleteError, count } = await supabaseAdmin
       .from('imoveis')
       .delete({ count: 'exact' })
-      .eq('id', idCorreto);
+      .eq('id', idUUID);
 
-    console.log('Tentando deletar ID:', idCorreto, '| Tipo:', typeof idCorreto, '| Linhas afetadas:', count);
+    console.log('Tentando deletar UUID:', idUUID, '| Linhas afetadas:', count);
 
     // 4. Regra de Validação Estrita: Se error existir OU se count === 0, a operação FALHOU
     if (deleteError || count === 0) {
-      console.error('❌ Erro/Falha no Supabase ao deletar imóvel:', deleteError || 'Count 0 linhas afetadas');
+      console.error('❌ Erro/Falha no Supabase ao deletar imóvel (UUID):', deleteError || 'Count 0 linhas afetadas');
       return NextResponse.json(
         { error: deleteError?.message || 'Nenhum imóvel foi deletado no banco de dados.' },
         { status: 500 }
       );
     }
 
-    console.log(`✅ [DELETAR IMOVEL SUCCESS] ${count} linha(s) afetada(s) no Supabase. Registro excluído definitivamente.`);
+    console.log(`✅ [DELETAR IMOVEL SUCCESS] ${count} linha(s) afetada(s) no Supabase. Registro UUID "${idUUID}" excluído definitivamente.`);
 
     return NextResponse.json({
       success: true,
