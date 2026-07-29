@@ -1,9 +1,9 @@
 -- ==============================================================================
--- MIGRATION: Tabela Profiles Expandida, RLS e Buckets no Supabase
+-- MIGRATION: Tabela Profiles, Imóveis, Foreign Keys (ON DELETE CASCADE) e Buckets
 -- Executar no SQL Editor do Supabase Dashboard (https://supabase.com/dashboard)
 -- ==============================================================================
 
--- 1. Criação da Tabela 'profiles' vinculada ao auth.users
+-- 1. Criação da Tabela 'profiles' vinculada ao auth.users com ON DELETE CASCADE
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nome_completo TEXT NOT NULL,
@@ -27,7 +27,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tipo_anunciante TEXT DEFAUL
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS creci TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
 
--- 2. Habilita a Segurança a Nível de Linha (RLS)
+-- 2. Habilita a Segurança a Nível de Linha (RLS) para profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- 3. Políticas de Segurança (RLS) para 'profiles'
@@ -49,7 +49,39 @@ CREATE POLICY "Usuários podem atualizar o próprio perfil"
   FOR UPDATE 
   USING (auth.uid() = id);
 
--- 4. Função e Trigger para atualizar updated_at automaticamente
+DROP POLICY IF EXISTS "Usuários podem deletar o próprio perfil" ON public.profiles;
+CREATE POLICY "Usuários podem deletar o próprio perfil" 
+  ON public.profiles 
+  FOR DELETE 
+  USING (auth.uid() = id);
+
+-- 4. Tabela 'imoveis' e Foreign Key vinculada ao usuário com ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS public.imoveis (
+  id BIGSERIAL PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  descricao TEXT,
+  tipo TEXT,
+  transacao TEXT,
+  preco NUMERIC,
+  preco_mensal_temporada NUMERIC,
+  condominio NUMERIC,
+  iptu NUMERIC,
+  bairro TEXT,
+  quartos INTEGER,
+  banheiros INTEGER,
+  vagas INTEGER,
+  area_m2 NUMERIC,
+  fotos TEXT[],
+  usuario_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Garante que a FK de usuario_id tenha ON DELETE CASCADE caso a tabela já existia
+ALTER TABLE public.imoveis DROP CONSTRAINT IF EXISTS imoveis_usuario_id_fkey;
+ALTER TABLE public.imoveis ADD CONSTRAINT imoveis_usuario_id_fkey 
+  FOREIGN KEY (usuario_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- 5. Função e Trigger para atualizar updated_at automaticamente em profiles
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -64,12 +96,12 @@ CREATE TRIGGER set_profiles_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_updated_at();
 
--- 5. Bucket Privado de Documentos no Supabase Storage
+-- 6. Bucket Privado de Documentos no Supabase Storage
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('documentos', 'documentos', false)
 ON CONFLICT (id) DO NOTHING;
 
--- 6. Bucket Público de Avatares no Supabase Storage
+-- 7. Bucket Público de Avatares no Supabase Storage
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatares', 'avatares', true)
 ON CONFLICT (id) DO NOTHING;

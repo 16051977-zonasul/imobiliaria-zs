@@ -11,7 +11,6 @@ import {
   Globe, 
   Award, 
   ShieldCheck, 
-  ShieldAlert, 
   Clock, 
   Camera, 
   Save, 
@@ -27,7 +26,8 @@ import {
   Home,
   MessageSquare,
   Sparkles,
-  Lock
+  AlertTriangle,
+  UserX
 } from 'lucide-react';
 
 export default function PerfilPage() {
@@ -37,6 +37,11 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [feedback, setFeedback] = useState(null);
+
+  // Estados de Exclusão de Conta
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // User & Profile State
   const [user, setUser] = useState(null);
@@ -238,7 +243,38 @@ export default function PerfilPage() {
     }
   }
 
-  // Formata Data de Membro
+  // Ação de Exclusão Definitiva de Conta
+  async function handleDeletarContaDefinitiva() {
+    setDeletingAccount(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch('/api/user/delete-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        await supabase.auth.signOut();
+        alert('Sua conta, fotos no Cloudflare R2 e todos os seus imóveis foram excluídos com sucesso.');
+        window.location.href = '/';
+      } else {
+        alert(data.error || 'Erro ao processar descadastro da conta.');
+      }
+    } catch (err) {
+      console.error('Erro no descadastro:', err);
+      alert('Falha na comunicação com o servidor ao excluir conta.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   function formatMembroDesde(dateString) {
     if (!dateString) return 'Membro recente';
     const date = new Date(dateString);
@@ -269,7 +305,7 @@ export default function PerfilPage() {
         </Link>
       </div>
 
-      {/* 2. AVISO DE TRANSPARÊNCIA E SEGURANÇA (Destaque no topo) */}
+      {/* AVISO DE TRANSPARÊNCIA E SEGURANÇA (Destaque no topo) */}
       <div className="bg-gradient-to-r from-sky-950/80 via-indigo-950/80 to-slate-900 border border-sky-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="flex items-start gap-4 relative z-10">
@@ -284,7 +320,7 @@ export default function PerfilPage() {
               </span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-w-4xl">
-              Suas informações de perfil (<strong>Nome, Telefone, Redes Sociais, CRECI, Bio e Avaliações</strong>) são públicas. Isso garante transparência e segurança para que os clientes confirmem sua identidade antes de fechar um negócio.
+              Suas informações de perfil (<strong>Nome, Telefone, Redes Sociais, Creci, Bio e Avaliações</strong>) são públicas. Isso garante transparência e segurança para que os clientes confirmem sua identidade antes de fechar um negócio.
             </p>
           </div>
         </div>
@@ -505,7 +541,7 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* 4. COLUNA DIREITA: ESTATÍSTICAS E SELOS DE CONFIANÇA */}
+        {/* COLUNA DIREITA: ESTATÍSTICAS E SELOS DE CONFIANÇA */}
         <div className="lg:col-span-4 space-y-6">
           
           {/* Card de Estatísticas */}
@@ -565,7 +601,7 @@ export default function PerfilPage() {
             </Link>
           </div>
 
-          {/* 5. SEÇÃO DE DEPOIMENTOS / AVALIAÇÕES DE CLIENTES */}
+          {/* SEÇÃO DE DEPOIMENTOS / AVALIAÇÕES DE CLIENTES */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 backdrop-blur-md shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -608,7 +644,7 @@ export default function PerfilPage() {
 
       </div>
 
-      {/* 6. GERENCIAMENTO DE ANÚNCIOS DO ANUNCIANTE */}
+      {/* GERENCIAMENTO DE ANÚNCIOS DO ANUNCIANTE */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl space-y-6">
         
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -693,6 +729,88 @@ export default function PerfilPage() {
         )}
 
       </div>
+
+      {/* SEÇÃO PERIGO: ENCERRAMENTO DEFINITIVO DA CONTA */}
+      <div className="bg-rose-950/20 border border-rose-500/30 rounded-3xl p-6 sm:p-8 backdrop-blur-md space-y-4">
+        <div className="flex items-center gap-3 text-rose-400 font-bold">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
+          <h3 className="text-base">Zona de Perigo - Descadastro Definitivo</h3>
+        </div>
+
+        <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+          Ao deletar sua conta permanentemente, todos os seus <strong>imóveis publicados</strong>, <strong>fotos salvas no Cloudflare R2</strong>, <strong>dados do perfil</strong> e <strong>documentos de verificação</strong> serão totalmente apagados sem possibilidade de recuperação.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setShowDeleteModal(true)}
+          className="px-5 py-3 bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2 cursor-pointer"
+        >
+          <UserX className="w-4 h-4" />
+          <span>Deletar minha conta permanentemente</span>
+        </button>
+      </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DE DELEÇÃO DE CONTA */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
+              <AlertTriangle className="w-7 h-7 animate-pulse" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-black text-white">Deletar Conta Permanentemente?</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Esta ação é <strong className="text-rose-400 font-bold">IRREVERSÍVEL</strong>. Todos os seus imóveis, fotos no Cloudflare R2 e dados de perfil serão completamente apagados do banco de dados.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
+                Digite <span className="text-rose-400 font-bold font-mono">DELETAR</span> para confirmar:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETAR"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-center text-rose-400 font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText('');
+                }}
+                disabled={deletingAccount}
+                className="w-1/2 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeletarContaDefinitiva}
+                disabled={deleteConfirmText.trim().toUpperCase() !== 'DELETAR' || deletingAccount}
+                className="w-1/2 py-3 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20"
+              >
+                {deletingAccount ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  <span>Confirmar Exclusão</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
