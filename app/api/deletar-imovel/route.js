@@ -16,33 +16,27 @@ export async function POST(request) {
     const body = await request.json();
     const { id } = body;
 
-    if (!id) {
+    if (!id && id !== 0) {
       return NextResponse.json(
         { error: 'ID do imóvel não foi informado.' },
         { status: 400 }
       );
     }
 
-    const targetId = !isNaN(Number(id)) ? Number(id) : id;
-    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão física do imóvel ID: ${id} (parsed: ${targetId})`);
+    // 1. Tratar o Tipo Correto do id (Number se for numérico, String se for UUID/text)
+    const isNumeric = !isNaN(Number(id)) && String(id).trim() !== '';
+    const idCorreto = isNumeric ? Number(id) : String(id).trim();
 
-    // 1. Busca as fotos salvas do imóvel antes do DELETE
-    let { data: imovel } = await supabaseAdmin
+    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão. ID Bruto:`, id, `| Parsed:`, idCorreto, `| Tipo:`, typeof idCorreto);
+
+    // 1.1 Busca as fotos salvas do imóvel no Supabase antes do DELETE
+    const { data: imovel } = await supabaseAdmin
       .from('imoveis')
       .select('id, fotos')
-      .eq('id', targetId)
+      .eq('id', idCorreto)
       .maybeSingle();
 
-    if (!imovel && typeof id === 'string') {
-      const { data: fallbackImovel } = await supabaseAdmin
-        .from('imoveis')
-        .select('id, fotos')
-        .eq('id', id)
-        .maybeSingle();
-      if (fallbackImovel) imovel = fallbackImovel;
-    }
-
-    // 2. Se houver fotos no R2, realiza a exclusão física no bucket
+    // 2. Se houver fotos no R2, realiza a exclusão física no bucket R2 via AWS SDK
     if (imovel?.fotos && Array.isArray(imovel.fotos) && imovel.fotos.length > 0) {
       console.log(`🗑️ [DELETAR IMOVEL] Excluindo ${imovel.fotos.length} fotos do Cloudflare R2...`, imovel.fotos);
       await deleteR2Objects(imovel.fotos);
@@ -52,17 +46,20 @@ export async function POST(request) {
     const { error: deleteError, count } = await supabaseAdmin
       .from('imoveis')
       .delete({ count: 'exact' })
-      .or(`id.eq.${targetId},id.eq.${id}`);
+      .eq('id', idCorreto);
 
-    if (deleteError) {
-      console.error('❌ Erro no Supabase ao deletar imóvel:', deleteError);
+    console.log('Tentando deletar ID:', idCorreto, '| Tipo:', typeof idCorreto, '| Linhas afetadas:', count);
+
+    // 4. Regra de Validação Estrita: Se error existir OU se count === 0, a operação FALHOU
+    if (deleteError || count === 0) {
+      console.error('❌ Erro/Falha no Supabase ao deletar imóvel:', deleteError || 'Count 0 linhas afetadas');
       return NextResponse.json(
-        { error: deleteError.message || 'Erro ao excluir imóvel no banco de dados Supabase.' },
+        { error: deleteError?.message || 'Nenhum imóvel foi deletado no banco de dados.' },
         { status: 500 }
       );
     }
 
-    console.log(`✅ [DELETAR IMOVEL SUCCESS] Registros removidos no Supabase: ${count ?? 'ok'}. Fotos R2 limpas.`);
+    console.log(`✅ [DELETAR IMOVEL SUCCESS] ${count} linha(s) afetada(s) no Supabase. Registro excluído definitivamente.`);
 
     return NextResponse.json({
       success: true,
