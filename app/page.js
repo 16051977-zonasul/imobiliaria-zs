@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { 
   Search, 
@@ -16,7 +17,8 @@ import {
   Filter,
   Building,
   Tag,
-  Home
+  Home,
+  ArrowRight
 } from 'lucide-react';
 
 const BAIRROS_ZONA_SUL = [
@@ -248,36 +250,34 @@ export default function CatalogPage() {
         {/* Grid of 4 Select Dropdowns */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          {/* 1. Transação (Comprar mapeado para Vender no banco) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <Tag className="w-3.5 h-3.5 text-sky-600" />
+          {/* Select 1: Transação */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
               Transação
             </label>
             <select
               value={selectedTransacao}
               onChange={(e) => setSelectedTransacao(e.target.value)}
-              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
+              className="w-full bg-slate-50 border-2 border-slate-200 hover:border-sky-400 focus:border-sky-500 text-slate-900 text-sm font-semibold rounded-2xl px-4 py-3 focus:outline-none transition-colors cursor-pointer"
             >
-              <option value="Todos">Transação</option>
+              <option value="Todos">Todas as Transações</option>
               <option value="Comprar">Comprar</option>
               <option value="Alugar">Alugar</option>
               <option value="Temporada">Temporada</option>
             </select>
           </div>
 
-          {/* 2. Tipo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <Building className="w-3.5 h-3.5 text-sky-600" />
-              Tipo do Imóvel
+          {/* Select 2: Tipo de Imóvel */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+              Tipo de Imóvel
             </label>
             <select
               value={selectedTipo}
               onChange={(e) => setSelectedTipo(e.target.value)}
-              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
+              className="w-full bg-slate-50 border-2 border-slate-200 hover:border-sky-400 focus:border-sky-500 text-slate-900 text-sm font-semibold rounded-2xl px-4 py-3 focus:outline-none transition-colors cursor-pointer"
             >
-              <option value="Todos">Tipo</option>
+              <option value="Todos">Todos os Tipos</option>
               <option value="Apartamento">Apartamento</option>
               <option value="Cobertura">Cobertura</option>
               <option value="Casa">Casa</option>
@@ -285,36 +285,34 @@ export default function CatalogPage() {
             </select>
           </div>
 
-          {/* 3. Bairro */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <MapPin className="w-3.5 h-3.5 text-sky-600" />
+          {/* Select 3: Bairro da Zona Sul */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
               Bairro (Zona Sul)
             </label>
             <select
               value={selectedBairro}
               onChange={(e) => setSelectedBairro(e.target.value)}
-              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
+              className="w-full bg-slate-50 border-2 border-slate-200 hover:border-sky-400 focus:border-sky-500 text-slate-900 text-sm font-semibold rounded-2xl px-4 py-3 focus:outline-none transition-colors cursor-pointer"
             >
-              <option value="Todos">Bairro</option>
-              {BAIRROS_ZONA_SUL.map((b) => (
-                <option key={b} value={b}>{b}</option>
+              <option value="Todos">Todos os Bairros</option>
+              {BAIRROS_ZONA_SUL.map((bairro) => (
+                <option key={bairro} value={bairro}>{bairro}</option>
               ))}
             </select>
           </div>
 
-          {/* 4. Quartos */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <Bed className="w-3.5 h-3.5 text-sky-600" />
-              Quartos
+          {/* Select 4: Mínimo de Quartos */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+              Mínimo de Quartos
             </label>
             <select
               value={selectedQuartos}
               onChange={(e) => setSelectedQuartos(e.target.value)}
-              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
+              className="w-full bg-slate-50 border-2 border-slate-200 hover:border-sky-400 focus:border-sky-500 text-slate-900 text-sm font-semibold rounded-2xl px-4 py-3 focus:outline-none transition-colors cursor-pointer"
             >
-              <option value="Todos">Quartos</option>
+              <option value="Todos">Qualquer Qtd</option>
               <option value="1">1+ Quarto</option>
               <option value="2">2+ Quartos</option>
               <option value="3">3+ Quartos</option>
@@ -325,28 +323,30 @@ export default function CatalogPage() {
         </div>
 
         {/* Input de Busca Textual */}
-        <div className="mt-4 pt-4 border-t border-slate-100 relative flex items-center">
-          <Search className="absolute left-4 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Ou busque por palavra-chave (ex: mar, terraço, reformado)..."
-            className="w-full bg-slate-50 text-slate-900 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-3">
+          <div className="relative flex-grow">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por palavras-chave (ex: vista mar, reformado, vaga privativa...)"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Título do Catálogo */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Header do Catálogo */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-            Imóveis Exclusivos
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              {imoveisFiltrados.length} disponíveis
+            Catálogo de Imóveis
+            <span className="text-xs font-bold px-3 py-1 bg-sky-500/20 text-sky-400 rounded-full border border-sky-500/30">
+              {imoveisFiltrados.length} encontrados
             </span>
           </h1>
-          <p className="text-slate-400 text-xs sm:text-sm mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Confira as melhores ofertas no litoral da Zona Sul do Rio de Janeiro
           </p>
         </div>
@@ -445,6 +445,15 @@ export default function CatalogPage() {
                       {imovel.iptu > 0 && <span>IPTU: R$ {imovel.iptu}</span>}
                     </div>
                   )}
+
+                  {/* BOTÃO "SAIBA MAIS" POSICIONADO ESTRATEGICAMENTE ANTES DA EXIBIÇÃO DA METRAGEM */}
+                  <Link
+                    href={`/imovel/${imovel.id}`}
+                    className="w-full py-2.5 px-4 bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 hover:border-sky-500 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 group/btn cursor-pointer shadow-sm mt-1"
+                  >
+                    <span>Saiba Mais</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                  </Link>
 
                   {/* Atributos do Imóvel */}
                   <div className="mt-auto border-t border-slate-800 pt-3 flex items-center justify-between text-xs text-slate-300 font-medium">
