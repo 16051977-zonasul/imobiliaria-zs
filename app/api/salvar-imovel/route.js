@@ -10,6 +10,7 @@ export async function POST(request) {
       tipo, 
       transacao, 
       preco, 
+      preco_mensal_temporada,
       condominio,
       iptu,
       bairro, 
@@ -18,7 +19,8 @@ export async function POST(request) {
       vagas, 
       area_m2, 
       fotos,
-      usuario_id
+      destaque,
+      ativo
     } = body;
 
     // Validação de campos essenciais
@@ -36,12 +38,14 @@ export async function POST(request) {
 
     console.log(`🔒 [SALVAR IMOVEL] Fotos sanitizadas enviadas para o Supabase (${cleanFotos.length}):`, cleanFotos);
 
+    // Payload estritamente adaptado às colunas válidas da tabela imoveis (sem usuario_id)
     const payload = {
       titulo,
       descricao: descricao || '',
       tipo: tipo || 'Apartamento',
       transacao: transacao || 'Vender',
       preco: parseFloat(preco),
+      ...(preco_mensal_temporada ? { preco_mensal_temporada: parseFloat(preco_mensal_temporada) } : {}),
       condominio: condominio ? parseFloat(condominio) : 0,
       iptu: iptu ? parseFloat(iptu) : 0,
       bairro: bairro || 'Zona Sul',
@@ -50,7 +54,8 @@ export async function POST(request) {
       vagas: parseInt(vagas, 10) || 0,
       area_m2: parseFloat(area_m2) || 0,
       fotos: cleanFotos,
-      ...(usuario_id ? { usuario_id } : {})
+      ...(typeof destaque === 'boolean' ? { destaque } : {}),
+      ...(typeof ativo === 'boolean' ? { ativo } : {})
     };
 
     const { data, error } = await supabase

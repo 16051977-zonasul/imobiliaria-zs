@@ -223,15 +223,22 @@ export default function AdminPage() {
 
       setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });
 
-      // 3. Monta o payload final e envia para o backend / Supabase
+      // 3. Monta o payload final (contendo apenas colunas válidas da tabela imoveis)
       const payload = {
-        ...formData,
-        fotos: cleanFotosR2,
+        titulo: formData.titulo,
+        descricao: formData.descricao || '',
+        tipo: formData.tipo,
+        transacao: formData.transacao,
         preco: parseCurrency(formData.preco),
         preco_mensal_temporada: parseCurrency(formData.preco_mensal_temporada),
         condominio: formData.transacao === 'Temporada' ? 0 : parseCurrency(formData.condominio),
         iptu: formData.transacao === 'Temporada' ? 0 : parseCurrency(formData.iptu),
-        usuario_id: user?.id,
+        bairro: formData.bairro,
+        quartos: formData.quartos,
+        banheiros: formData.banheiros,
+        vagas: formData.vagas,
+        area_m2: formData.area_m2,
+        fotos: cleanFotosR2
       };
 
       const res = await fetch('/api/salvar-imovel', {
