@@ -44,7 +44,7 @@ export default function PerfilPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  // Estados de Exclusão de Imóvel Específico (R2 + Supabase)
+  // Estados de Exclusão de Imóvel Específico
   const [propertyToDelete, setPropertyToDelete] = useState(null);
   const [deletingProperty, setDeletingProperty] = useState(false);
 
@@ -126,7 +126,7 @@ export default function PerfilPage() {
         }));
       }
 
-      // 2. Carrega imóveis cadastrados
+      // 2. Carrega imóveis cadastrados no banco de dados Supabase
       const { data: imoveisData } = await supabase
         .from('imoveis')
         .select('*')
@@ -224,24 +224,31 @@ export default function PerfilPage() {
     }
   }
 
-  // Executa exclusão completa do imóvel (R2 + Supabase) via API /api/deletar-imovel
+  // Executa exclusão física completa do imóvel via API /api/deletar-imovel
   async function handleConfirmarExclusaoImovel() {
     if (!propertyToDelete) return;
 
+    const idParaDeletar = propertyToDelete.id;
     setDeletingProperty(true);
+
     try {
       const res = await fetch('/api/deletar-imovel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: propertyToDelete.id }),
+        body: JSON.stringify({ id: idParaDeletar }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setMeusImoveis((prev) => prev.filter((i) => i.id !== propertyToDelete.id));
-        setFeedback({ type: 'success', message: 'Imóvel e fotos excluídos permanentemente do R2 e Supabase.' });
+        // Atualiza estritamente o estado local removendo o imóvel excluído
+        setMeusImoveis((prev) => prev.filter((item) => String(item.id) !== String(idParaDeletar)));
+        setFeedback({ 
+          type: 'success', 
+          message: 'Imóvel e fotos excluídos permanentemente do sistema Imóveis Zona Sul Rio de Janeiro' 
+        });
         setPropertyToDelete(null);
+        router.refresh();
       } else {
         alert(data.error || 'Erro ao excluir imóvel.');
       }
@@ -272,7 +279,7 @@ export default function PerfilPage() {
 
       if (res.ok && data.success) {
         await supabase.auth.signOut();
-        alert('Sua conta, fotos no Cloudflare R2 e todos os seus imóveis foram excluídos com sucesso.');
+        alert('Sua conta, fotos e todos os seus imóveis foram excluídos com sucesso do sistema Imóveis Zona Sul Rio de Janeiro.');
         window.location.href = '/';
       } else {
         alert(data.error || 'Erro ao processar descadastro da conta.');
@@ -723,7 +730,7 @@ export default function PerfilPage() {
                         <Edit3 className="w-3.5 h-3.5" /> Editar
                       </Link>
 
-                      {/* Modal de Alerta de Exclusão Física no R2 + Supabase */}
+                      {/* Modal de Alerta de Exclusão do Imóvel */}
                       <button
                         type="button"
                         onClick={() => setPropertyToDelete(imovel)}
@@ -750,7 +757,7 @@ export default function PerfilPage() {
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-          Ao deletar sua conta permanentemente, todos os seus <strong>imóveis publicados</strong>, <strong>fotos salvas no Cloudflare R2</strong>, <strong>dados do perfil</strong> e <strong>documentos de verificação</strong> serão totalmente apagados sem possibilidade de recuperação.
+          Ao deletar sua conta permanentemente, todos os seus <strong>imóveis publicados</strong>, <strong>fotos salvas</strong>, <strong>dados do perfil</strong> e <strong>documentos de verificação</strong> serão totalmente apagados sem possibilidade de recuperação.
         </p>
 
         <button
@@ -763,7 +770,7 @@ export default function PerfilPage() {
         </button>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO LIMPA DO IMÓVEL (R2 + SUPABASE) */}
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO LIMPA DO IMÓVEL */}
       {propertyToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
@@ -774,7 +781,7 @@ export default function PerfilPage() {
             <div className="text-center space-y-2">
               <h3 className="text-xl font-black text-white">Excluir Imóvel Permanentemente?</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Tem certeza? Todas as informações do anúncio <strong className="text-white font-bold">"{propertyToDelete.titulo}"</strong> e todas as suas fotos no <strong className="text-sky-400 font-bold">Cloudflare R2</strong> serão excluídas permanentemente do nosso sistema.
+                Tem certeza? Todas as informações do anúncio <strong className="text-white font-bold">"{propertyToDelete.titulo}"</strong> e todas as informações do imóvel e fotos serão excluídas permanentemente do nosso sistema.
               </p>
             </div>
 
@@ -797,7 +804,7 @@ export default function PerfilPage() {
                 {deletingProperty ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Excluindo R2...</span>
+                    <span>Excluindo Imóvel...</span>
                   </>
                 ) : (
                   <span>Confirmar Exclusão</span>
@@ -819,7 +826,7 @@ export default function PerfilPage() {
             <div className="text-center space-y-2">
               <h3 className="text-xl font-black text-white">Deletar Conta Permanentemente?</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Esta ação é <strong className="text-rose-400 font-bold">IRREVERSÍVEL</strong>. Todos os seus imóveis, fotos no Cloudflare R2 e dados de perfil serão completamente apagados do banco de dados.
+                Esta ação é <strong className="text-rose-400 font-bold">IRREVERSÍVEL</strong>. Todos os seus imóveis, fotos e dados de perfil serão completamente apagados do banco de dados.
               </p>
             </div>
 
