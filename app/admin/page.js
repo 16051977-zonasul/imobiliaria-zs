@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { convertToWebP, uploadFileToR2 } from '@/lib/imageUtils';
 import { 
   Building2, 
   UploadCloud, 
@@ -22,7 +23,8 @@ import {
   Clock,
   RefreshCw,
   LogOut,
-  XCircle
+  XCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -45,13 +47,15 @@ const BAIRROS_ZONA_SUL = [
 export default function AdminPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
   // Auth & Profile state
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Lista de Fotos selecionadas: [{ id, file, previewUrl, remoteUrl }]
+  const [selectedFotos, setSelectedFotos] = useState([]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -67,8 +71,7 @@ export default function AdminPage() {
     quartos: '2',
     banheiros: '2',
     vagas: '1',
-    area_m2: '80',
-    fotos: []
+    area_m2: '80'
   });
 
   useEffect(() => {
@@ -87,7 +90,7 @@ export default function AdminPage() {
       setUser(user);
 
       // Busca perfil no Supabase
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
@@ -96,7 +99,6 @@ export default function AdminPage() {
       if (data) {
         setProfile(data);
       } else {
-        // Perfil temporário ou fallback enquanto a migration de perfis não for aplicada
         setProfile({
           nome_completo: user.user_metadata?.nome_completo || user.email,
           cpf: user.user_metadata?.cpf || 'Cadastrado',
@@ -131,61 +133,32 @@ export default function AdminPage() {
     }
   }
 
-  async function handleFileUpload(e) {
+  // Seleção e preview instantâneo de mídias no frontend
+  function handleSelectFiles(e) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    setUploading(true);
-    const uploadedUrls = [];
-
-    for (const file of files) {
-      try {
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type || 'image/webp'
-          })
-        });
-
-        const data = await res.json();
-
-        if (res.ok && data.uploadUrl && data.publicUrl) {
-          const uploadRes = await fetch(data.uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type || 'image/webp' },
-            body: file
-          });
-
-          if (uploadRes.ok) {
-            uploadedUrls.push(data.publicUrl);
-          } else {
-            uploadedUrls.push(URL.createObjectURL(file));
-          }
-        } else {
-          uploadedUrls.push(URL.createObjectURL(file));
-        }
-      } catch (err) {
-        console.warn('Fallback de imagem:', err);
-        uploadedUrls.push(URL.createObjectURL(file));
-      }
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      fotos: [...prev.fotos, ...uploadedUrls]
+    const newItems = files.map((file) => ({
+      id: `${Date.now()}_${Math.random()}`,
+      file: file,
+      previewUrl: URL.createObjectURL(file),
+      remoteUrl: null,
     }));
-    setUploading(false);
+
+    setSelectedFotos((prev) => [...prev, ...newItems]);
   }
 
   function removerFoto(index) {
-    setFormData((prev) => ({
-      ...prev,
-      fotos: prev.fotos.filter((_, i) => i !== index)
-    }));
+    setSelectedFotos((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl && target.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   }
 
+  // Envio do formulário: Conversão WebP + Upload R2 ANTES do Insert no Supabase
   async function handleSubmit(e) {
     e.preventDefault();
     setFeedback(null);
@@ -196,11 +169,55 @@ export default function AdminPage() {
     }
 
     setSubmitting(true);
-    setFeedback({ type: 'loading', message: 'Enviando.....' });
+    setFeedback({ type: 'loading', message: 'Otimizando imagens em WebP e enviando ao Cloudflare R2.....' });
 
     try {
+      const finalR2Urls = [];
+
+      // 1. Processa cada foto selecionada (Conversão WebP + Upload R2)
+      for (let i = 0; i < selectedFotos.length; i++) {
+        const item = selectedFotos[i];
+
+        // Se a foto já for uma URL pública do R2 (ex: edição)
+        if (item.remoteUrl && (item.remoteUrl.startsWith('http://') || item.remoteUrl.startsWith('https://')) && !item.remoteUrl.startsWith('blob:')) {
+          finalR2Urls.push(item.remoteUrl);
+          continue;
+        }
+
+        // Se for um arquivo novo selecionado pelo usuário
+        if (item.file) {
+          setFeedback({ 
+            type: 'loading', 
+            message: `Otimizando e enviando imagem ${i + 1} de ${selectedFotos.length} em WebP para o R2.....` 
+          });
+
+          // a. Converte/comprime imagem para .webp via Canvas
+          const webpFile = await convertToWebP(item.file, 0.85);
+
+          // b. Faz upload para o Cloudflare R2 e recupera URL pública oficial
+          const r2PublicUrl = await uploadFileToR2(webpFile);
+
+          if (r2PublicUrl && (r2PublicUrl.startsWith('http://') || r2PublicUrl.startsWith('https://')) && !r2PublicUrl.startsWith('blob:')) {
+            finalR2Urls.push(r2PublicUrl);
+          } else {
+            console.warn(`[Aviso] Falha ao obter URL pública do R2 para ${item.file.name}`);
+          }
+        }
+      }
+
+      // 2. Garante que nenhuma URL temporária do tipo blob: seja enviada ao banco de dados
+      const cleanFotosR2 = finalR2Urls.filter(
+        (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:')
+      );
+
+      console.log('📸 [FOTOS R2 ENVIADAS AO SUPABASE]:', cleanFotosR2);
+
+      setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });
+
+      // 3. Monta o payload final e envia para o backend / Supabase
       const payload = {
         ...formData,
+        fotos: cleanFotosR2,
         preco: parseCurrency(formData.preco),
         preco_mensal_temporada: parseCurrency(formData.preco_mensal_temporada),
         condominio: formData.transacao === 'Temporada' ? 0 : parseCurrency(formData.condominio),
@@ -220,13 +237,13 @@ export default function AdminPage() {
         setFeedback({ type: 'success', message: 'Imóvel postado com sucesso!' });
         setTimeout(() => {
           router.push('/');
-        }, 2000);
+        }, 1500);
       } else {
         setFeedback({ type: 'error', message: data.error || 'Erro ao cadastrar imóvel.' });
       }
     } catch (err) {
       console.error('Erro no envio do formulário:', err);
-      setFeedback({ type: 'error', message: 'Erro na conexão com o servidor.' });
+      setFeedback({ type: 'error', message: err.message || 'Erro na conexão com o servidor.' });
     } finally {
       setSubmitting(false);
     }
@@ -237,7 +254,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
-        <p className="text-xs font-semibold text-slate-400">Verificando credenciais e permissões do anunciante...</p>
+        <p className="text-xs font-semibold text-slate-400">Verificando credenciais do anunciante...</p>
       </div>
     );
   }
@@ -247,7 +264,6 @@ export default function AdminPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl text-center space-y-6">
-          
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
             <ShieldAlert className="w-8 h-8 animate-pulse" />
           </div>
@@ -283,7 +299,7 @@ export default function AdminPage() {
           </div>
 
           <div className="p-4 bg-sky-950/40 border border-sky-500/20 rounded-2xl text-xs text-sky-300 max-w-xl mx-auto leading-relaxed text-left">
-            🔒 <strong>Por que fazemos isso?</strong> O envio da foto do documento garante a autenticidade de cada anunciante e evita fraudes no mercado imobiliário da Zona Sul. Assim que nossa equipe validar os dados, o botão de publicação de imóveis será liberado automaticamente.
+            🔒 O envio de documentos garante a autenticidade de cada anunciante e previne fraudes na plataforma. Assim que nossa equipe validar os dados, a publicação de imóveis será liberada automaticamente.
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
@@ -329,7 +345,7 @@ export default function AdminPage() {
               await supabase.auth.signOut();
               router.push('/login');
             }}
-            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all"
+            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
           >
             Sair e Fazer Novo Cadastro
           </button>
@@ -337,6 +353,11 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  // Capa para o Card de Pré-visualização
+  const previewCapa = selectedFotos.length > 0 
+    ? (selectedFotos[0].previewUrl || selectedFotos[0].remoteUrl)
+    : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
 
   // 4. PAINEL DE ANÚNCIO LIBERADO (Para anunciantes 'aprovados')
   return (
@@ -628,10 +649,11 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Upload de Fotos */}
+              {/* Upload de Fotos com Conversão Automática para WebP */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Fotos do Imóvel
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                  <span>Fotos do Imóvel</span>
+                  <span className="text-[10px] text-sky-400 font-normal">Otimizadas em WebP no R2</span>
                 </label>
 
                 <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-950/50 transition-colors group cursor-pointer">
@@ -639,35 +661,31 @@ export default function AdminPage() {
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={handleFileUpload}
+                    onChange={handleSelectFiles}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    disabled={uploading}
+                    disabled={submitting}
                   />
                   <div className="flex flex-col items-center justify-center gap-2">
-                    {uploading ? (
-                      <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
-                    ) : (
-                      <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-sky-400 transition-colors" />
-                    )}
+                    <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-sky-400 transition-colors" />
                     <span className="text-xs font-semibold text-slate-300">
-                      {uploading ? 'Enviando.....' : 'Clique ou arraste imagens aqui para enviar'}
+                      Clique ou arraste imagens aqui para selecionar
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Formatos aceitos: JPG, PNG, WEBP
+                      Conversão automática para WebP e upload ao R2 durante a publicação
                     </span>
                   </div>
                 </div>
 
-                {/* Previews das fotos */}
-                {formData.fotos.length > 0 && (
+                {/* Previews das fotos selecionadas */}
+                {selectedFotos.length > 0 && (
                   <div className="grid grid-cols-4 gap-3 mt-4">
-                    {formData.fotos.map((url, idx) => (
-                      <div key={idx} className="relative rounded-xl overflow-hidden h-24 border border-slate-800 group">
-                        <img src={url} alt="Preview" className="w-full h-full object-cover" />
+                    {selectedFotos.map((item, idx) => (
+                      <div key={item.id || idx} className="relative rounded-xl overflow-hidden h-24 border border-slate-800 group">
+                        <img src={item.previewUrl || item.remoteUrl} alt="Preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => removerFoto(idx)}
-                          className="absolute top-1 right-1 bg-rose-600/90 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 bg-rose-600/90 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -681,12 +699,12 @@ export default function AdminPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 text-sm cursor-pointer"
+                className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 text-sm cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Enviando.....</span>
+                    <span>Otimizando e enviando imagens.....</span>
                   </>
                 ) : (
                   <>
@@ -711,7 +729,7 @@ export default function AdminPage() {
             <div className="glass-card rounded-2xl overflow-hidden flex flex-col border border-sky-500/30">
               <div className="relative h-60 w-full bg-slate-950">
                 <img
-                  src={formData.fotos[0] || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80'}
+                  src={previewCapa}
                   alt="Preview"
                   className="w-full h-full object-cover"
                 />
