@@ -241,16 +241,27 @@ export default function PerfilPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Atualiza estritamente o estado local removendo o imóvel excluído
-        setMeusImoveis((prev) => prev.filter((item) => String(item.id) !== String(idParaDeletar)));
+        // 1. Atualiza estritamente o estado local removendo o imóvel excluído
+        setMeusImoveis((prev) => prev.filter((item) => String(item.id) !== String(idParaDeletar) && Number(item.id) !== Number(idParaDeletar)));
+        
+        // 2. Define feedback de sucesso no topo da tela
         setFeedback({ 
           type: 'success', 
           message: 'Imóvel e fotos excluídos permanentemente do sistema Imóveis Zona Sul Rio de Janeiro' 
         });
+        
+        // 3. Fecha o modal
         setPropertyToDelete(null);
+
+        // 4. Rola a tela suavemente para o topo para mostrar a confirmação
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 5. Revalida dados com a rota do Next.js
         router.refresh();
       } else {
-        alert(data.error || 'Erro ao excluir imóvel.');
+        alert(data.error || 'Erro ao excluir imóvel no banco de dados.');
       }
     } catch (err) {
       console.error('Erro ao excluir imóvel:', err);
@@ -322,6 +333,27 @@ export default function PerfilPage() {
         </Link>
       </div>
 
+      {/* BANNER DE FEEDBACK GLOBAL NO TOPO DA PÁGINA */}
+      {feedback && (
+        <div className={`p-4 rounded-2xl flex items-center justify-between gap-3 text-sm font-medium transition-all shadow-xl ${
+          feedback.type === 'success' 
+            ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300' 
+            : 'bg-rose-500/15 border border-rose-500/40 text-rose-300'
+        }`}>
+          <div className="flex items-center gap-3">
+            {feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+            <span>{feedback.message}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setFeedback(null)} 
+            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* AVISO DE TRANSPARÊNCIA E SEGURANÇA (Destaque no topo) */}
       <div className="bg-gradient-to-r from-sky-950/80 via-indigo-950/80 to-slate-900 border border-sky-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -376,17 +408,6 @@ export default function PerfilPage() {
                 )}
               </div>
             </div>
-
-            {feedback && (
-              <div className={`p-4 rounded-2xl mb-6 flex items-center gap-3 text-sm font-medium ${
-                feedback.type === 'success' 
-                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
-                  : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-              }`}>
-                {feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-                <span>{feedback.message}</span>
-              </div>
-            )}
 
             <form onSubmit={handleSalvarPerfil} className="space-y-6">
               

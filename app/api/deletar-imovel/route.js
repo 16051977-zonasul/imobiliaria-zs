@@ -23,44 +23,50 @@ export async function POST(request) {
       );
     }
 
-    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão física do imóvel ID: ${id}`);
+    const targetId = !isNaN(Number(id)) ? Number(id) : id;
+    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão física do imóvel ID: ${id} (parsed: ${targetId})`);
 
     // 1. Busca as fotos salvas do imóvel antes do DELETE
-    const { data: imovel, error: fetchError } = await supabaseAdmin
+    let { data: imovel } = await supabaseAdmin
       .from('imoveis')
       .select('id, fotos')
-      .eq('id', id)
-      .single();
+      .eq('id', targetId)
+      .maybeSingle();
 
-    if (fetchError) {
-      console.warn('Aviso ao buscar fotos do imóvel para exclusão:', fetchError.message);
+    if (!imovel && typeof id === 'string') {
+      const { data: fallbackImovel } = await supabaseAdmin
+        .from('imoveis')
+        .select('id, fotos')
+        .eq('id', id)
+        .maybeSingle();
+      if (fallbackImovel) imovel = fallbackImovel;
     }
 
-    // 2. Se houver fotos no R2, realiza a exclusão física do bucket R2 via AWS SDK
+    // 2. Se houver fotos no R2, realiza a exclusão física no bucket
     if (imovel?.fotos && Array.isArray(imovel.fotos) && imovel.fotos.length > 0) {
       console.log(`🗑️ [DELETAR IMOVEL] Excluindo ${imovel.fotos.length} fotos do Cloudflare R2...`, imovel.fotos);
       await deleteR2Objects(imovel.fotos);
     }
 
     // 3. Executa a exclusão da linha na tabela imoveis no Supabase via Admin Client
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError, count } = await supabaseAdmin
       .from('imoveis')
-      .delete()
-      .eq('id', id);
+      .delete({ count: 'exact' })
+      .or(`id.eq.${targetId},id.eq.${id}`);
 
     if (deleteError) {
-      console.error('❌ Erro ao deletar imóvel no Supabase:', deleteError);
+      console.error('❌ Erro no Supabase ao deletar imóvel:', deleteError);
       return NextResponse.json(
-        { error: deleteError.message || 'Erro ao excluir imóvel no banco de dados.' },
+        { error: deleteError.message || 'Erro ao excluir imóvel no banco de dados Supabase.' },
         { status: 500 }
       );
     }
 
-    console.log(`✅ [DELETAR IMOVEL SUCCESS] Imóvel ID ${id} e suas fotos no R2 foram limpos com sucesso.`);
+    console.log(`✅ [DELETAR IMOVEL SUCCESS] Registros removidos no Supabase: ${count ?? 'ok'}. Fotos R2 limpas.`);
 
     return NextResponse.json({
       success: true,
-      message: 'Imóvel e fotos excluídos permanentemente do R2 e Supabase.',
+      message: 'Imóvel e fotos excluídos permanentemente do sistema Imóveis Zona Sul Rio de Janeiro',
     });
 
   } catch (err) {
