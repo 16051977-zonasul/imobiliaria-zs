@@ -5,6 +5,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { 
+      id,
       titulo, 
       descricao, 
       tipo, 
@@ -58,19 +59,37 @@ export async function POST(request) {
       ...(typeof ativo === 'boolean' ? { ativo } : {})
     };
 
-    const { data, error } = await supabase
-      .from('imoveis')
-      .insert([payload])
-      .select();
+    let resultData;
+    if (id) {
+      console.log(`📝 [SALVAR IMOVEL] Atualizando imóvel ID: ${id}`);
+      const { data, error } = await supabase
+        .from('imoveis')
+        .update(payload)
+        .eq('id', id)
+        .select();
 
-    if (error) {
-      console.error('Erro no Supabase ao salvar imóvel:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error('Erro no Supabase ao atualizar imóvel:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      resultData = data && data.length > 0 ? data[0] : { id, ...payload };
+    } else {
+      console.log('✨ [SALVAR IMOVEL] Cadastrando novo imóvel');
+      const { data, error } = await supabase
+        .from('imoveis')
+        .insert([payload])
+        .select();
+
+      if (error) {
+        console.error('Erro no Supabase ao inserir imóvel:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      resultData = data && data.length > 0 ? data[0] : payload;
     }
 
     return NextResponse.json({ 
       success: true, 
-      imovel: data && data.length > 0 ? data[0] : payload 
+      imovel: resultData 
     });
 
   } catch (error) {

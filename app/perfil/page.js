@@ -27,7 +27,8 @@ import {
   MessageSquare,
   Sparkles,
   AlertTriangle,
-  UserX
+  UserX,
+  X
 } from 'lucide-react';
 
 export default function PerfilPage() {
@@ -42,6 +43,10 @@ export default function PerfilPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Estados de Exclusão de Imóvel Específico (R2 + Supabase)
+  const [propertyToDelete, setPropertyToDelete] = useState(null);
+  const [deletingProperty, setDeletingProperty] = useState(false);
 
   // User & Profile State
   const [user, setUser] = useState(null);
@@ -59,7 +64,6 @@ export default function PerfilPage() {
 
   // Imóveis do Anunciante
   const [meusImoveis, setMeusImoveis] = useState([]);
-  const [deletingId, setDeletingId] = useState(null);
 
   // Depoimentos / Avaliações
   const [avaliacoes, setAvaliacoes] = useState([
@@ -122,7 +126,7 @@ export default function PerfilPage() {
         }));
       }
 
-      // 2. Carrega imóveis cadastrados pelo anunciante
+      // 2. Carrega imóveis cadastrados
       const { data: imoveisData } = await supabase
         .from('imoveis')
         .select('*')
@@ -220,26 +224,32 @@ export default function PerfilPage() {
     }
   }
 
-  async function handleExcluirImovel(id) {
-    if (!confirm('Tem certeza que deseja excluir este anúncio do catálogo?')) return;
+  // Executa exclusão completa do imóvel (R2 + Supabase) via API /api/deletar-imovel
+  async function handleConfirmarExclusaoImovel() {
+    if (!propertyToDelete) return;
 
-    setDeletingId(id);
+    setDeletingProperty(true);
     try {
-      const { error } = await supabase
-        .from('imoveis')
-        .delete()
-        .eq('id', id);
+      const res = await fetch('/api/deletar-imovel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: propertyToDelete.id }),
+      });
 
-      if (error) {
-        console.warn('Erro ao deletar no Supabase, removendo localmente:', error);
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setMeusImoveis((prev) => prev.filter((i) => i.id !== propertyToDelete.id));
+        setFeedback({ type: 'success', message: 'Imóvel e fotos excluídos permanentemente do R2 e Supabase.' });
+        setPropertyToDelete(null);
+      } else {
+        alert(data.error || 'Erro ao excluir imóvel.');
       }
-
-      setMeusImoveis((prev) => prev.filter((i) => i.id !== id));
-      setFeedback({ type: 'success', message: 'Imóvel removido do catálogo com sucesso!' });
     } catch (err) {
       console.error('Erro ao excluir imóvel:', err);
+      alert('Falha na comunicação com o servidor ao deletar imóvel.');
     } finally {
-      setDeletingId(null);
+      setDeletingProperty(false);
     }
   }
 
@@ -705,19 +715,21 @@ export default function PerfilPage() {
                     <p className="text-lg font-black text-emerald-400 mb-4">{precoFormatted}</p>
 
                     <div className="mt-auto border-t border-slate-800 pt-3 flex items-center justify-between">
+                      {/* Redireciona com id via Query Parameter para preencher o formulário no admin */}
                       <Link
-                        href="/admin"
-                        className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1"
+                        href={`/admin?id=${imovel.id}`}
+                        className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" /> Editar
                       </Link>
 
+                      {/* Modal de Alerta de Exclusão Física no R2 + Supabase */}
                       <button
-                        onClick={() => handleExcluirImovel(imovel.id)}
-                        disabled={deletingId === imovel.id}
-                        className="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        type="button"
+                        onClick={() => setPropertyToDelete(imovel)}
+                        className="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 cursor-pointer"
                       >
-                        {deletingId === imovel.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        <Trash2 className="w-3.5 h-3.5" />
                         <span>Excluir</span>
                       </button>
                     </div>
@@ -751,7 +763,52 @@ export default function PerfilPage() {
         </button>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO DE DELEÇÃO DE CONTA */}
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO LIMPA DO IMÓVEL (R2 + SUPABASE) */}
+      {propertyToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
+              <Trash2 className="w-7 h-7 animate-bounce" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-black text-white">Excluir Imóvel Permanentemente?</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tem certeza? Todas as informações do anúncio <strong className="text-white font-bold">"{propertyToDelete.titulo}"</strong> e todas as suas fotos no <strong className="text-sky-400 font-bold">Cloudflare R2</strong> serão excluídas permanentemente do nosso sistema.
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPropertyToDelete(null)}
+                disabled={deletingProperty}
+                className="w-1/2 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmarExclusaoImovel}
+                disabled={deletingProperty}
+                className="w-1/2 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20 disabled:opacity-50"
+              >
+                {deletingProperty ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Excluindo R2...</span>
+                  </>
+                ) : (
+                  <span>Confirmar Exclusão</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE DELEÇÃO DA CONTA */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">

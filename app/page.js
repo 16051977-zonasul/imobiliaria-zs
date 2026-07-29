@@ -103,12 +103,12 @@ export default function CatalogPage() {
       },
       {
         id: 102,
-        titulo: 'Cobertura Duplex com Piscina e Vista Leblon',
-        descricao: 'Exclusiva cobertura duplex a 2 quadras da praia com terraço gourmet privativo.',
+        titulo: 'Cobertura Duplex com Piscina e Vista Cristo Redentor',
+        descricao: 'Exclusiva cobertura no Leblon com terraço privativo, churrasqueira e piscina.',
         tipo: 'Cobertura',
         transacao: 'Vender',
         preco: 6200000,
-        condominio: 4100,
+        condominio: 4500,
         iptu: 1200,
         bairro: 'Leblon',
         quartos: 4,
@@ -117,36 +117,36 @@ export default function CatalogPage() {
         area_m2: 280,
         fotos: [
           'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
-          'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80'
+          'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80'
         ]
       },
       {
         id: 103,
-        titulo: 'Studio Moderno Decorado Próximo ao Metrô',
-        descricao: 'Excelente opção para morar ou investir em locação por temporada.',
+        titulo: 'Studio Moderno Reformado em Copacabana',
+        descricao: 'Ótima oportunidade para investimento ou moradia a 2 quadras da praia.',
         tipo: 'Studio',
         transacao: 'Alugar',
-        preco: 4500,
-        condominio: 680,
-        iptu: 150,
+        preco: 4200,
+        condominio: 650,
+        iptu: 120,
         bairro: 'Copacabana',
         quartos: 1,
         banheiros: 1,
-        vagas: 1,
-        area_m2: 42,
+        vagas: 0,
+        area_m2: 38,
         fotos: [
-          'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
-          'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
+          'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+          'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80'
         ]
       },
       {
         id: 104,
-        titulo: 'Imóvel Ensolarado com Vista Cristo Redentor',
-        descricao: 'Apartamento aconchegante cercado pelo verde do Jardim Botânico.',
-        tipo: 'Apartamento',
-        transacao: 'Vender',
-        preco: 1750000,
-        condominio: 1350,
+        titulo: 'Casa de Vila Charmosa no Jardim Botânico',
+        descricao: 'Vila silenciosa, arborizada e segura no coração do Jardim Botânico.',
+        tipo: 'Casa',
+        transacao: 'Alugar',
+        preco: 9800,
+        condominio: 350,
         iptu: 380,
         bairro: 'Jardim Botânico',
         quartos: 2,
@@ -185,10 +185,13 @@ export default function CatalogPage() {
       (imovel.tipo && imovel.tipo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (imovel.descricao && imovel.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
 
+    // Mapeamento: "Comprar" selecionado no filtro consulta "Vender" / "Venda" no banco de dados
     const matchTransacao = selectedTransacao === 'Todos' || 
       imovel.transacao === selectedTransacao ||
-      (selectedTransacao === 'Vender' && (imovel.transacao === 'Venda' || imovel.transacao === 'Vender')) ||
-      (selectedTransacao === 'Alugar' && (imovel.transacao === 'Aluguel' || imovel.transacao === 'Alugar'));
+      (selectedTransacao === 'Comprar' && (imovel.transacao === 'Vender' || imovel.transacao === 'Venda' || imovel.transacao === 'Comprar')) ||
+      (selectedTransacao === 'Alugar' && (imovel.transacao === 'Aluguel' || imovel.transacao === 'Alugar')) ||
+      (selectedTransacao === 'Temporada' && imovel.transacao === 'Temporada');
+    
     const matchTipo = selectedTipo === 'Todos' || imovel.tipo === selectedTipo;
     const matchBairro = selectedBairro === 'Todos' || imovel.bairro === selectedBairro;
     const matchQuartos = selectedQuartos === 'Todos' || (imovel.quartos && imovel.quartos >= parseInt(selectedQuartos, 10));
@@ -235,7 +238,7 @@ export default function CatalogPage() {
           {(selectedTransacao !== 'Todos' || selectedTipo !== 'Todos' || selectedBairro !== 'Todos' || selectedQuartos !== 'Todos' || searchTerm !== '') && (
             <button
               onClick={resetFiltros}
-              className="text-xs text-sky-600 hover:text-sky-800 font-bold underline underline-offset-4"
+              className="text-xs text-sky-600 hover:text-sky-800 font-bold underline underline-offset-4 cursor-pointer"
             >
               Limpar Filtros
             </button>
@@ -245,7 +248,7 @@ export default function CatalogPage() {
         {/* Grid of 4 Select Dropdowns */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          {/* 1. Transação */}
+          {/* 1. Transação (Comprar mapeado para Vender no banco) */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
               <Tag className="w-3.5 h-3.5 text-sky-600" />
@@ -257,7 +260,7 @@ export default function CatalogPage() {
               className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
             >
               <option value="Todos">Transação</option>
-              <option value="Vender">Vender</option>
+              <option value="Comprar">Comprar</option>
               <option value="Alugar">Alugar</option>
               <option value="Temporada">Temporada</option>
             </select>
@@ -267,7 +270,7 @@ export default function CatalogPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
               <Building className="w-3.5 h-3.5 text-sky-600" />
-              Tipo de Imóvel
+              Tipo do Imóvel
             </label>
             <select
               value={selectedTipo}
@@ -286,7 +289,7 @@ export default function CatalogPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
               <MapPin className="w-3.5 h-3.5 text-sky-600" />
-              Bairro
+              Bairro (Zona Sul)
             </label>
             <select
               value={selectedBairro}
@@ -320,67 +323,60 @@ export default function CatalogPage() {
           </div>
 
         </div>
-      </div>
 
-      {/* Hero Header */}
-      <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-8 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-500/10 via-transparent to-transparent pointer-events-none" />
-
-        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-4 leading-tight">
-          Encontre seu próximo imóvel em <br />
-          <span className="gradient-text">Copacabana, Ipanema e Leblon</span>
-        </h1>
-
-        <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
-          Catálogo atualizado diariamente com os melhores apartamentos, coberturas e imóveis de alto padrão na Zona Sul carioca.
-        </p>
-
-        {/* Search Bar */}
-        <div className="max-w-3xl mx-auto relative flex items-center">
-          <Search className="absolute left-4 w-5 h-5 text-slate-400 pointer-events-none" />
+        {/* Input de Busca Textual */}
+        <div className="mt-4 pt-4 border-t border-slate-100 relative flex items-center">
+          <Search className="absolute left-4 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Busque por rua, bairro ou palavra-chave..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl pl-12 pr-4 py-4 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm shadow-xl backdrop-blur-md transition-all"
+            placeholder="Ou busque por palavra-chave (ex: mar, terraço, reformado)..."
+            className="w-full bg-slate-50 text-slate-900 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
-          {searchTerm && (
-            <button 
-              onClick={() => setSearchTerm('')}
-              className="absolute right-4 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg"
-            >
-              Limpar
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Imóveis Grid Header */}
+      {/* Título do Catálogo */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          Imóveis Disponíveis
-          <span className="text-xs font-normal px-2.5 py-0.5 rounded-full bg-slate-800 text-sky-400 border border-slate-700">
-            {imoveisFiltrados.length} {imoveisFiltrados.length === 1 ? 'resultado' : 'resultados'}
-          </span>
-        </h2>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+            Imóveis Exclusivos
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              {imoveisFiltrados.length} disponíveis
+            </span>
+          </h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">
+            Confira as melhores ofertas no litoral da Zona Sul do Rio de Janeiro
+          </p>
+        </div>
       </div>
 
-      {/* Catalog Grid */}
+      {/* Grid de Imóveis */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="bg-slate-900 border border-slate-800 rounded-2xl h-96 animate-pulse" />
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="glass-card rounded-2xl h-96 animate-pulse p-4 space-y-4">
+              <div className="bg-slate-800 h-48 rounded-xl" />
+              <div className="bg-slate-800 h-4 w-3/4 rounded" />
+              <div className="bg-slate-800 h-4 w-1/2 rounded" />
+            </div>
           ))}
         </div>
       ) : imoveisFiltrados.length === 0 ? (
-        <div className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-3xl">
-          <p className="text-slate-400 text-base mb-3">Nenhum imóvel encontrado com os filtros selecionados.</p>
-          <button 
+        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-12 text-center space-y-4 max-w-xl mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mx-auto text-sky-400">
+            <Home className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Nenhum imóvel encontrado</h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Não encontramos nenhum imóvel com a combinação de filtros selecionada. Tente ajustar os parâmetros ou limpar os filtros.
+          </p>
+          <button
             onClick={resetFiltros}
-            className="text-xs text-sky-400 hover:underline font-semibold"
+            className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-sky-500/20 cursor-pointer"
           >
-            Resetar filtros
+            Limpar Filtros de Busca
           </button>
         </div>
       ) : (
@@ -390,66 +386,68 @@ export default function CatalogPage() {
             const capa = fotos.length > 0 ? fotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
             const precoFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(imovel.preco || 0);
 
+            let labelPreco = precoFormatted;
+            if (imovel.transacao === 'Temporada') {
+              labelPreco = `${precoFormatted} / diária`;
+            } else if (imovel.transacao === 'Alugar' || imovel.transacao === 'Aluguel') {
+              labelPreco = `${precoFormatted} / mês`;
+            }
+
             return (
-              <article 
-                key={imovel.id} 
-                className="glass-card rounded-2xl overflow-hidden flex flex-col group transition-all duration-300 cursor-pointer"
-                onClick={() => abrirGaleria(fotos.length > 0 ? fotos : [capa])}
-              >
-                {/* Card Image Cover */}
-                <div className="relative h-60 w-full overflow-hidden bg-slate-950">
-                  <img
-                    src={capa}
-                    alt={`${imovel.tipo || 'Imóvel'} em ${imovel.bairro || 'Zona Sul'}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
+              <div key={imovel.id} className="glass-card rounded-2xl overflow-hidden flex flex-col group border border-slate-800/80 hover:border-sky-500/40 transition-all duration-300 hover:shadow-xl hover:shadow-sky-500/5">
+                
+                {/* Capa & Badge */}
+                <div className="relative h-56 w-full bg-slate-950 overflow-hidden cursor-pointer" onClick={() => abrirGaleria(fotos)}>
+                  <img 
+                    src={capa} 
+                    alt={imovel.titulo} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
                   
-                  {/* Badges */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider ${
-                      imovel.transacao === 'Temporada' 
-                        ? 'bg-amber-600/90 text-white' 
-                        : (imovel.transacao === 'Alugar' || imovel.transacao === 'Aluguel')
-                          ? 'bg-indigo-600/90 text-white' 
-                          : 'bg-emerald-600/90 text-white'
-                    }`}>
-                      {imovel.transacao || 'Vender'}
+                  {/* Badges de Transação & Tipo */}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-md">
+                      {imovel.transacao === 'Vender' || imovel.transacao === 'Venda' ? 'Venda' : imovel.transacao}
                     </span>
-                    <span className="bg-slate-900/90 backdrop-blur-md text-slate-200 text-[11px] px-2.5 py-1 rounded-lg font-medium border border-slate-700/60">
+                    <span className="bg-slate-900/90 text-slate-200 text-[11px] px-2.5 py-1 rounded-lg font-medium border border-slate-700 shadow-md">
                       {imovel.tipo || 'Apartamento'}
                     </span>
                   </div>
 
+                  {/* Fotos counter */}
                   {fotos.length > 0 && (
-                    <span className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-white text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/10">
+                    <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1.5">
                       <Camera className="w-3.5 h-3.5 text-sky-400" />
-                      {fotos.length}
-                    </span>
+                      <span>{fotos.length}</span>
+                    </div>
                   )}
                 </div>
 
-                {/* Card Content */}
-                <div className="p-5 flex flex-col flex-grow">
-                  <div className="flex items-center gap-1.5 text-sky-400 text-xs font-semibold mb-2">
-                    <MapPin className="w-3.5 h-3.5" />
+                {/* Conteúdo do Card */}
+                <div className="p-5 flex flex-col flex-grow space-y-3">
+                  <div className="flex items-center gap-1.5 text-sky-400 text-xs font-semibold">
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
                     <span>{imovel.bairro || 'Zona Sul'}</span>
                   </div>
 
-                  {/* Nome limpo e direto no formato Tipo em Bairro */}
-                  <h3 className="text-base font-bold text-white mb-2 group-hover:text-sky-300 transition-colors">
-                    {imovel.tipo || 'Imóvel'} em {imovel.bairro || 'Zona Sul'}
+                  <h3 className="text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-sky-300 transition-colors">
+                    {imovel.titulo}
                   </h3>
 
-                  <p className="text-2xl font-black text-emerald-400 mb-4">
-                    {precoFormatted}
-                    {(imovel.transacao === 'Alugar' || imovel.transacao === 'Aluguel') && <span className="text-xs text-slate-400 font-normal"> / mês</span>}
-                    {imovel.transacao === 'Temporada' && <span className="text-xs text-slate-400 font-normal"> / diária</span>}
+                  <p className="text-xl font-black text-emerald-400">
+                    {labelPreco}
                   </p>
 
-                  {/* Features details */}
-                  <div className="mt-auto border-t border-slate-800/80 pt-3 flex items-center justify-between text-xs text-slate-300 font-medium">
+                  {(imovel.condominio > 0 || imovel.iptu > 0) && (
+                    <div className="flex gap-3 text-[11px] text-slate-400 border-t border-slate-800/60 pt-2">
+                      {imovel.condominio > 0 && <span>Cond: R$ {imovel.condominio}</span>}
+                      {imovel.iptu > 0 && <span>IPTU: R$ {imovel.iptu}</span>}
+                    </div>
+                  )}
+
+                  {/* Atributos do Imóvel */}
+                  <div className="mt-auto border-t border-slate-800 pt-3 flex items-center justify-between text-xs text-slate-300 font-medium">
                     <div className="flex items-center gap-1">
                       <Maximize2 className="w-3.5 h-3.5 text-slate-400" />
                       <span>{imovel.area_m2 || 0} m²</span>
@@ -468,42 +466,43 @@ export default function CatalogPage() {
                     </div>
                   </div>
                 </div>
-              </article>
+
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Photo Gallery Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
-          <button 
+      {/* GALERIA MODAL DE FOTOS */}
+      {modalOpen && currentGallery.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
+          <button
             onClick={() => setModalOpen(false)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-slate-800/80 text-white hover:bg-slate-700 transition-colors"
+            className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-full bg-slate-900/80 border border-slate-800 cursor-pointer z-10"
           >
             <X className="w-6 h-6" />
           </button>
 
-          <div className="relative max-w-5xl w-full flex flex-col items-center">
-            <div className="relative w-full h-[65vh] flex items-center justify-center">
-              <img 
-                src={currentGallery[currentPhotoIndex]} 
-                alt="Foto em alta definição"
-                className="max-h-full max-w-full object-contain rounded-2xl shadow-2xl"
+          <div className="relative max-w-4xl w-full flex flex-col items-center">
+            <div className="relative w-full h-[65vh] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800">
+              <img
+                src={currentGallery[currentPhotoIndex]}
+                alt={`Foto ${currentPhotoIndex + 1}`}
+                className="w-full h-full object-contain"
               />
 
               {currentGallery.length > 1 && (
                 <>
-                  <button 
+                  <button
                     onClick={() => mudarFoto(-1)}
-                    className="absolute left-4 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 backdrop-blur-md transition-all hover:scale-110"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-950/80 hover:bg-slate-900 text-white p-3 rounded-full border border-slate-800 transition-all cursor-pointer"
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
 
-                  <button 
+                  <button
                     onClick={() => mudarFoto(1)}
-                    className="absolute right-4 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 backdrop-blur-md transition-all hover:scale-110"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-950/80 hover:bg-slate-900 text-white p-3 rounded-full border border-slate-800 transition-all cursor-pointer"
                   >
                     <ChevronRight className="w-6 h-6" />
                   </button>
@@ -511,11 +510,9 @@ export default function CatalogPage() {
               )}
             </div>
 
-            {currentGallery.length > 1 && (
-              <div className="mt-4 text-xs font-semibold text-slate-300 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-800">
-                {currentPhotoIndex + 1} de {currentGallery.length}
-              </div>
-            )}
+            <div className="mt-4 text-xs font-semibold text-slate-400 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
+              Foto {currentPhotoIndex + 1} de {currentGallery.length}
+            </div>
           </div>
         </div>
       )}

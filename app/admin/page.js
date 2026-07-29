@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { convertToWebP, uploadFileToR2 } from '@/lib/imageUtils';
 import { 
@@ -24,7 +24,10 @@ import {
   RefreshCw,
   LogOut,
   XCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Home,
+  User,
+  Edit3
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,10 +47,15 @@ const BAIRROS_ZONA_SUL = [
   'Laranjeiras'
 ];
 
-export default function AdminPage() {
+function AdminFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('id');
+
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   // Auth & Profile state
   const [user, setUser] = useState(null);
@@ -77,6 +85,12 @@ export default function AdminPage() {
   useEffect(() => {
     checkAuthAndProfile();
   }, []);
+
+  useEffect(() => {
+    if (editId) {
+      carregarImovelParaEdicao(editId);
+    }
+  }, [editId]);
 
   async function checkAuthAndProfile() {
     setAuthLoading(true);
@@ -112,16 +126,63 @@ export default function AdminPage() {
     }
   }
 
+  // Se houver um ID via Query Parameter (/admin?id=123), carrega os dados para edição
+  async function carregarImovelParaEdicao(id) {
+    try {
+      const { data, error } = await supabase
+        .from('imoveis')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.warn('Erro ao buscar imóvel para edição:', error);
+        return;
+      }
+
+      if (data) {
+        setEditingId(data.id);
+        setFormData({
+          titulo: data.titulo || '',
+          descricao: data.descricao || '',
+          tipo: data.tipo || 'Apartamento',
+          transacao: data.transacao || 'Vender',
+          preco: formatCurrency(String(data.preco || '')),
+          preco_mensal_temporada: formatCurrency(String(data.preco_mensal_temporada || '')),
+          condominio: formatCurrency(String(data.condominio || '')),
+          iptu: formatCurrency(String(data.iptu || '')),
+          bairro: data.bairro || 'Ipanema',
+          quartos: String(data.quartos || '2'),
+          banheiros: String(data.banheiros || '2'),
+          vagas: String(data.vagas || '1'),
+          area_m2: String(data.area_m2 || '80'),
+        });
+
+        if (data.fotos && Array.isArray(data.fotos)) {
+          const existingPhotos = data.fotos.map((url, idx) => ({
+            id: `remote_${idx}_${Date.now()}`,
+            file: null,
+            previewUrl: null,
+            remoteUrl: url,
+          }));
+          setSelectedFotos(existingPhotos);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar imóvel:', err);
+    }
+  }
+
   // Formata valor monetário: 2500000 -> "2.500.000"
   function formatCurrency(value) {
-    const nums = value.replace(/\D/g, '');
+    const nums = String(value).replace(/\D/g, '');
     if (!nums) return '';
     return new Intl.NumberFormat('pt-BR').format(Number(nums));
   }
 
   // Converte string formatada de volta para número puro
   function parseCurrency(formatted) {
-    return formatted ? formatted.replace(/\./g, '').replace(/,/g, '') : '';
+    return formatted ? String(formatted).replace(/\./g, '').replace(/,/g, '') : '';
   }
 
   function handleChange(e) {
@@ -158,7 +219,7 @@ export default function AdminPage() {
     });
   }
 
-  // Envio do formulário: Conversão WebP + Upload R2 ANTES do Insert no Supabase
+  // Envio do formulário: Conversão WebP + Upload R2 ANTES do Insert/Update no Supabase
   async function handleSubmit(e) {
     e.preventDefault();
     setFeedback(null);
@@ -223,8 +284,9 @@ export default function AdminPage() {
 
       setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });
 
-      // 3. Monta o payload final (contendo apenas colunas válidas da tabela imoveis)
+      // 3. Monta o payload final (contendo id para edição se existir)
       const payload = {
+        ...(editingId ? { id: editingId } : {}),
         titulo: formData.titulo,
         descricao: formData.descricao || '',
         tipo: formData.tipo,
@@ -250,10 +312,8 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setFeedback({ type: 'success', message: 'Imóvel postado com sucesso!' });
-        setTimeout(() => {
-          router.push('/');
-        }, 1500);
+        setFeedback(null);
+        setShowSuccessModal(true);
       } else {
         setFeedback({ type: 'error', message: data.error || 'Erro ao cadastrar imóvel.' });
       }
@@ -411,11 +471,15 @@ export default function AdminPage() {
             
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-sky-500/20">
-                <Building2 className="w-5 h-5 text-white" />
+                {editingId ? <Edit3 className="w-5 h-5 text-white" /> : <Building2 className="w-5 h-5 text-white" />}
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Cadastrar Novo Imóvel</h1>
-                <p className="text-slate-400 text-xs">Preencha os dados do imóvel na Zona Sul do Rio de Janeiro</p>
+                <h1 className="text-2xl font-bold text-white tracking-tight">
+                  {editingId ? `Editar Imóvel (ID #${editingId})` : 'Cadastrar Novo Imóvel'}
+                </h1>
+                <p className="text-slate-400 text-xs">
+                  {editingId ? 'Atualize os dados e fotos do imóvel cadastrado' : 'Preencha os dados do imóvel na Zona Sul do Rio de Janeiro'}
+                </p>
               </div>
             </div>
 
@@ -725,7 +789,7 @@ export default function AdminPage() {
                 ) : (
                   <>
                     <Building2 className="w-5 h-5" />
-                    <span>Publicar Imóvel</span>
+                    <span>{editingId ? 'Salvar Alterações do Imóvel' : 'Publicar Imóvel'}</span>
                   </>
                 )}
               </button>
@@ -804,6 +868,88 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DE PUBLICAÇÃO / EDIÇÃO BEM-SUCEDIDA */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="bg-slate-900 border border-sky-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
+              <CheckCircle2 className="w-10 h-10 animate-bounce" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                {editingId ? 'Imóvel Atualizado com Sucesso!' : 'Imóvel Publicado com Sucesso!'}
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Seu imóvel já está online e disponível no catálogo da <strong>Imóveis Zona Sul Rio de Janeiro</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="w-full py-3.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Home className="w-4 h-4" />
+                <span>Ver no Catálogo Principal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push('/perfil')}
+                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <User className="w-4 h-4" />
+                <span>Ir para Meus Anúncios (Perfil)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setEditingId(null);
+                  setFormData({
+                    titulo: '',
+                    descricao: '',
+                    tipo: 'Apartamento',
+                    transacao: 'Vender',
+                    preco: '',
+                    preco_mensal_temporada: '',
+                    condominio: '',
+                    iptu: '',
+                    bairro: 'Ipanema',
+                    quartos: '2',
+                    banheiros: '2',
+                    vagas: '1',
+                    area_m2: '80'
+                  });
+                  setSelectedFotos([]);
+                  router.push('/admin');
+                }}
+                className="w-full py-2.5 text-xs font-semibold text-sky-400 hover:underline cursor-pointer"
+              >
+                Cadastrar Outro Imóvel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
+        <p className="text-xs font-semibold text-slate-400">Carregando painel do imóvel...</p>
+      </div>
+    }>
+      <AdminFormContent />
+    </Suspense>
   );
 }
