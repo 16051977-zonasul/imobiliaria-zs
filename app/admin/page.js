@@ -210,6 +210,15 @@ export default function AdminPage() {
         (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:')
       );
 
+      if (selectedFotos.length > 0 && cleanFotosR2.length === 0) {
+        setFeedback({ 
+          type: 'error', 
+          message: 'Falha ao enviar fotos para o Cloudflare R2. Verifique suas credenciais no .env.local.' 
+        });
+        setSubmitting(false);
+        return;
+      }
+
       console.log('📸 [FOTOS R2 ENVIADAS AO SUPABASE]:', cleanFotosR2);
 
       setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });

@@ -17,7 +17,8 @@ export async function POST(request) {
       banheiros, 
       vagas, 
       area_m2, 
-      fotos 
+      fotos,
+      usuario_id
     } = body;
 
     // Validação de campos essenciais
@@ -28,11 +29,18 @@ export async function POST(request) {
       );
     }
 
+    // Trava de Sanitização Estrita: Filtra e remove qualquer URL temporária blob: ou data:
+    const cleanFotos = (Array.isArray(fotos) ? fotos : []).filter(
+      (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:') && !url.startsWith('data:')
+    );
+
+    console.log(`🔒 [SALVAR IMOVEL] Fotos sanitizadas enviadas para o Supabase (${cleanFotos.length}):`, cleanFotos);
+
     const payload = {
       titulo,
       descricao: descricao || '',
       tipo: tipo || 'Apartamento',
-      transacao: transacao || 'Venda',
+      transacao: transacao || 'Vender',
       preco: parseFloat(preco),
       condominio: condominio ? parseFloat(condominio) : 0,
       iptu: iptu ? parseFloat(iptu) : 0,
@@ -41,7 +49,8 @@ export async function POST(request) {
       banheiros: parseInt(banheiros, 10) || 0,
       vagas: parseInt(vagas, 10) || 0,
       area_m2: parseFloat(area_m2) || 0,
-      fotos: Array.isArray(fotos) ? fotos : []
+      fotos: cleanFotos,
+      ...(usuario_id ? { usuario_id } : {})
     };
 
     const { data, error } = await supabase
