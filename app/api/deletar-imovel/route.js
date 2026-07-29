@@ -2,29 +2,17 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { deleteR2Objects } from '@/lib/r2';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!serviceRoleKey) {
-  console.error("[ERRO CRÍTICO] SUPABASE_SERVICE_ROLE_KEY não foi encontrada nas variáveis de ambiente!");
-}
-
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
-
-    const supabaseAdmin = createClient(
-      supabaseUrl,
-      serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        ...(token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : {}),
-      }
-    );
+    // 1. Validar a presença da SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      console.error('❌ [ERRO DE CONFIGURAÇÃO] Chave SUPABASE_SERVICE_ROLE_KEY não encontrada no ambiente.');
+      return NextResponse.json(
+        { error: 'Chave SUPABASE_SERVICE_ROLE_KEY não encontrada no ambiente.' },
+        { status: 500 }
+      );
+    }
 
     const body = await request.json();
     if (!body?.id) {
@@ -35,22 +23,36 @@ export async function POST(request) {
     }
 
     const idUUID = String(body.id).trim();
-    console.log(`🗑️ [DELETAR IMOVEL] Tentando deletar UUID: "${idUUID}"`);
 
-    // 1. Busca as fotos salvas do imóvel antes do DELETE
+    // 2. Instanciar o Supabase Admin diretamente com a Service Key
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      serviceRoleKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }
+    );
+
+    console.log(`🗑️ [DELETAR IMOVEL] Tentando deletar imóvel por UUID: "${idUUID}"`);
+
+    // 2.1 Busca as fotos salvas do imóvel antes do DELETE
     const { data: imovel } = await supabaseAdmin
       .from('imoveis')
       .select('id, fotos')
       .eq('id', idUUID)
       .maybeSingle();
 
-    // 2. Se houver fotos no R2, realiza a exclusão física no bucket R2 via AWS SDK
+    // Exclui fotos no Cloudflare R2 se existirem
     if (imovel?.fotos && Array.isArray(imovel.fotos) && imovel.fotos.length > 0) {
       console.log(`🗑️ [DELETAR IMOVEL] Excluindo ${imovel.fotos.length} fotos do Cloudflare R2...`, imovel.fotos);
       await deleteR2Objects(imovel.fotos);
     }
 
-    // 3. Executa a deleção simplificada direta no Supabase
+    // 3. Executar a remoção ignorando RLS via Service Role Key
     const { error: deleteError, count } = await supabaseAdmin
       .from('imoveis')
       .delete({ count: 'exact' })
@@ -58,7 +60,6 @@ export async function POST(request) {
 
     console.log('Tentando deletar UUID:', idUUID, '| Linhas afetadas:', count, '| Erro:', deleteError);
 
-    // 4. Regra de Validação Estrita: Se error existir OU se count === 0, a operação FALHOU
     if (deleteError || count === 0) {
       console.error('❌ Erro/Falha no Supabase ao deletar UUID:', deleteError || 'Count 0 linhas afetadas');
       return NextResponse.json(
