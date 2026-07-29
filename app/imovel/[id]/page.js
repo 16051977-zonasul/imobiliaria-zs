@@ -198,7 +198,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
       }
 
       if (!profileData) {
-        // Busca primeiro perfil verificado ativo como demostração
+        // Busca primeiro perfil verificado ativo como demonstração
         const { data: list } = await supabase
           .from('profiles')
           .select('*')
@@ -212,6 +212,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
         setAnunciante(profileData);
       } else {
         setAnunciante({
+          id: 'credenciado',
           nome_completo: 'Corretor Credenciado Zona Sul',
           telefone: '(21) 99888-7766',
           tipo_anunciante: 'Sou Corretor(a)',
@@ -223,6 +224,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
     } catch (e) {
       console.warn('Usando perfil anunciante padrão:', e);
       setAnunciante({
+        id: 'credenciado',
         nome_completo: 'Corretor Credenciado Zona Sul',
         telefone: '(21) 99888-7766',
         tipo_anunciante: 'Sou Corretor(a)',
@@ -233,7 +235,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
     }
   }
 
-  // Busca até 4 imóveis similares no mesmo bairro ou mesmo tipo/quartos
+  // Busca estritamente no Supabase até 4 imóveis ativos no mesmo bairro ou mesmo tipo (SEM MOCK)
   async function carregarImoveisSimilares(currentImovel) {
     try {
       const { data } = await supabase
@@ -246,18 +248,11 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
       if (data && data.length > 0) {
         setImoveisSimilares(data);
       } else {
-        // Fallback de imóveis similares usando MOCK
-        const mockFiltered = MOCK_IMOVEIS.filter(
-          (m) => String(m.id) !== String(currentImovel.id)
-        ).slice(0, 4);
-        setImoveisSimilares(mockFiltered);
+        setImoveisSimilares([]);
       }
     } catch (e) {
-      console.warn('Erro ao carregar imóveis similares:', e);
-      const mockFiltered = MOCK_IMOVEIS.filter(
-        (m) => String(m.id) !== String(currentImovel.id)
-      ).slice(0, 4);
-      setImoveisSimilares(mockFiltered);
+      console.warn('Erro ao carregar imóveis similares do Supabase:', e);
+      setImoveisSimilares([]);
     }
   }
 
@@ -325,6 +320,8 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
   // Mensagem pré-formatada do WhatsApp com encodeURIComponent
   const whatsappMessageText = `Olá, vi o anúncio do imóvel ${imovel.titulo} no Imóveis Zona Sul Rio de Janeiro e gostaria de mais informações.`;
   const whatsappUrl = `https://api.whatsapp.com/send?phone=${whatsappPhoneFormatted}&text=${encodeURIComponent(whatsappMessageText)}`;
+
+  const anunciantePublicId = anunciante?.id || imovel?.usuario_id || 'credenciado';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
@@ -546,10 +543,10 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
                 <span>Falar no WhatsApp</span>
               </a>
 
-              {/* LINK DISCRETO PARA O PERFIL DO ANUNCIANTE */}
+              {/* LINK DISCRETO PARA O PERFIL PÚBLICO DO ANUNCIANTE (SEM REDIRECIONAR PARA LOGIN) */}
               <div className="text-center pt-2 border-t border-slate-800">
                 <Link
-                  href="/perfil"
+                  href={`/anunciante/${anunciantePublicId}`}
                   className="text-xs text-slate-400 hover:text-sky-400 font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5" />
@@ -576,73 +573,75 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
 
       </div>
 
-      {/* BLOCO DE IMÓVEIS SIMILARES ("Imóveis que você também pode gostar") */}
-      <div className="border-t border-slate-800/80 pt-12 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              Imóveis que você também pode gostar
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Opções semelhantes em {imovel.bairro} e arredores da Zona Sul
-            </p>
+      {/* BLOCO DE IMÓVEIS SIMILARES REAIS (EXIBIDO APENAS SE HOUVER IMÓVEIS REAIS CADASTRADOS NO SUPABASE) */}
+      {imoveisSimilares && imoveisSimilares.length > 0 && (
+        <div className="border-t border-slate-800/80 pt-12 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                Imóveis que você também pode gostar
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Opções semelhantes em {imovel.bairro} e arredores da Zona Sul
+              </p>
+            </div>
+
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:underline font-bold"
+            >
+              <span>Ver todo o catálogo</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:underline font-bold"
-          >
-            <span>Ver todo o catálogo</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {imoveisSimilares.map((item) => {
+              const itemFotos = item.fotos || [];
+              const itemCapa = itemFotos.length > 0 ? itemFotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
+              const itemPreco = formatarPreco(item.preco);
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {imoveisSimilares.map((item) => {
-            const itemFotos = item.fotos || [];
-            const itemCapa = itemFotos.length > 0 ? itemFotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
-            const itemPreco = formatarPreco(item.preco);
+              return (
+                <div key={item.id} className="glass-card rounded-2xl overflow-hidden flex flex-col group border border-slate-800/80 hover:border-sky-500/40 transition-all duration-300">
+                  <div className="relative h-44 w-full bg-slate-950">
+                    <img src={itemCapa} alt={item.titulo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                    <div className="absolute top-2.5 left-2.5 flex gap-1.5">
+                      <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold">
+                        {item.transacao || 'Venda'}
+                      </span>
+                      <span className="bg-slate-900/90 text-slate-200 text-[10px] px-2 py-0.5 rounded-lg font-medium border border-slate-700">
+                        {item.tipo || 'Apartamento'}
+                      </span>
+                    </div>
+                  </div>
 
-            return (
-              <div key={item.id} className="glass-card rounded-2xl overflow-hidden flex flex-col group border border-slate-800/80 hover:border-sky-500/40 transition-all duration-300">
-                <div className="relative h-44 w-full bg-slate-950">
-                  <img src={itemCapa} alt={item.titulo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                  <div className="absolute top-2.5 left-2.5 flex gap-1.5">
-                    <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold">
-                      {item.transacao || 'Venda'}
-                    </span>
-                    <span className="bg-slate-900/90 text-slate-200 text-[10px] px-2 py-0.5 rounded-lg font-medium border border-slate-700">
-                      {item.tipo || 'Apartamento'}
-                    </span>
+                  <div className="p-4 flex flex-col flex-grow space-y-2">
+                    <span className="text-sky-400 text-xs font-semibold">{item.bairro || 'Zona Sul'}</span>
+                    <h3 className="text-xs font-bold text-white line-clamp-2 leading-snug">{item.titulo}</h3>
+                    <p className="text-base font-black text-emerald-400">{itemPreco}</p>
+
+                    {/* Botão Saiba Mais nos Cards Similares */}
+                    <Link
+                      href={`/imovel/${item.id}`}
+                      className="w-full py-2 px-3 bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 hover:border-sky-500 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 group/btn cursor-pointer mt-1"
+                    >
+                      <span>Saiba Mais</span>
+                      <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
+                    </Link>
+
+                    <div className="mt-auto border-t border-slate-800 pt-2.5 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{item.area_m2 || 0} m²</span>
+                      <span>{item.quartos || 0} qts</span>
+                      <span>{item.banheiros || 0} banh</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="p-4 flex flex-col flex-grow space-y-2">
-                  <span className="text-sky-400 text-xs font-semibold">{item.bairro || 'Zona Sul'}</span>
-                  <h3 className="text-xs font-bold text-white line-clamp-2 leading-snug">{item.titulo}</h3>
-                  <p className="text-base font-black text-emerald-400">{itemPreco}</p>
-
-                  {/* Botão Saiba Mais nos Cards Similares */}
-                  <Link
-                    href={`/imovel/${item.id}`}
-                    className="w-full py-2 px-3 bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 hover:border-sky-500 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 group/btn cursor-pointer mt-1"
-                  >
-                    <span>Saiba Mais</span>
-                    <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
-                  </Link>
-
-                  <div className="mt-auto border-t border-slate-800 pt-2.5 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>{item.area_m2 || 0} m²</span>
-                    <span>{item.quartos || 0} qts</span>
-                    <span>{item.banheiros || 0} banh</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* BARRA FIXA MOBILE PARA ACESSO DIRETO AO WHATSAPP */}
       <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-slate-950/95 border-t border-slate-800 p-3 backdrop-blur-lg shadow-2xl">

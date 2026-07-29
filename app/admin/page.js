@@ -27,7 +27,8 @@ import {
   Image as ImageIcon,
   Home,
   User,
-  Edit3
+  Edit3,
+  Star
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +65,7 @@ function AdminFormContent() {
 
   // Lista de Fotos selecionadas: [{ id, file, previewUrl, remoteUrl }]
   const [selectedFotos, setSelectedFotos] = useState([]);
+  const [coverPhotoIndex, setCoverPhotoIndex] = useState(0);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -166,6 +168,7 @@ function AdminFormContent() {
             remoteUrl: url,
           }));
           setSelectedFotos(existingPhotos);
+          setCoverPhotoIndex(0);
         }
       }
     } catch (err) {
@@ -217,6 +220,12 @@ function AdminFormContent() {
       }
       return prev.filter((_, i) => i !== index);
     });
+
+    if (coverPhotoIndex === index) {
+      setCoverPhotoIndex(0);
+    } else if (coverPhotoIndex > index) {
+      setCoverPhotoIndex((prev) => prev - 1);
+    }
   }
 
   // Envio do formulário: Conversão WebP + Upload R2 ANTES do Insert/Update no Supabase
@@ -230,7 +239,7 @@ function AdminFormContent() {
     }
 
     setSubmitting(true);
-    setFeedback({ type: 'loading', message: 'Otimizando imagens em WebP e enviando ao Cloudflare R2.....' });
+    setFeedback({ type: 'loading', message: 'Otimizando imagens e enviando mídias ao sistema.....' });
 
     try {
       const finalR2Urls = [];
@@ -249,7 +258,7 @@ function AdminFormContent() {
         if (item.file) {
           setFeedback({ 
             type: 'loading', 
-            message: `Otimizando e enviando imagem ${i + 1} de ${selectedFotos.length} em WebP para o R2.....` 
+            message: `Otimizando e enviando imagem ${i + 1} de ${selectedFotos.length} em WebP para o sistema.....` 
           });
 
           // a. Converte/comprime imagem para .webp via Canvas
@@ -261,7 +270,7 @@ function AdminFormContent() {
           if (r2PublicUrl && (r2PublicUrl.startsWith('http://') || r2PublicUrl.startsWith('https://')) && !r2PublicUrl.startsWith('blob:')) {
             finalR2Urls.push(r2PublicUrl);
           } else {
-            console.warn(`[Aviso] Falha ao obter URL pública do R2 para ${item.file.name}`);
+            console.warn(`[Aviso] Falha ao obter URL pública para ${item.file.name}`);
           }
         }
       }
@@ -274,19 +283,26 @@ function AdminFormContent() {
       if (selectedFotos.length > 0 && cleanFotosR2.length === 0) {
         setFeedback({ 
           type: 'error', 
-          message: 'Falha ao enviar fotos para o Cloudflare R2. Verifique suas credenciais no .env.local.' 
+          message: 'Falha ao enviar fotos ao sistema. Verifique suas credenciais no .env.local.' 
         });
         setSubmitting(false);
         return;
       }
 
-      console.log('📸 [FOTOS R2 ENVIADAS AO SUPABASE]:', cleanFotosR2);
+      // Reordena o array para colocar a foto definida como Capa/Destaque no índice 0
+      if (coverPhotoIndex > 0 && coverPhotoIndex < cleanFotosR2.length) {
+        const coverUrl = cleanFotosR2.splice(coverPhotoIndex, 1)[0];
+        cleanFotosR2.unshift(coverUrl);
+      }
+
+      console.log('📸 [FOTOS PUBLICAS ENVIADAS AO SUPABASE (CAPA PRIMEIRO)]:', cleanFotosR2);
 
       setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });
 
       // 3. Monta o payload final (contendo id para edição se existir)
       const payload = {
         ...(editingId ? { id: editingId } : {}),
+        usuario_id: user?.id,
         titulo: formData.titulo,
         descricao: formData.descricao || '',
         tipo: formData.tipo,
@@ -430,9 +446,10 @@ function AdminFormContent() {
     );
   }
 
-  // Capa para o Card de Pré-visualização
+  // Capa para o Card de Pré-visualização (Reflete a foto de capa selecionada pelo usuário)
+  const selectedCoverItem = selectedFotos[coverPhotoIndex] || selectedFotos[0];
   const previewCapa = selectedFotos.length > 0 
-    ? (selectedFotos[0].previewUrl || selectedFotos[0].remoteUrl)
+    ? (selectedCoverItem?.previewUrl || selectedCoverItem?.remoteUrl)
     : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
 
   // 4. PAINEL DE ANÚNCIO LIBERADO (Para anunciantes 'aprovados')
@@ -721,7 +738,7 @@ function AdminFormContent() {
                 </label>
                 <textarea
                   name="descricao"
-                  rows={3}
+                  rows={4}
                   value={formData.descricao}
                   onChange={handleChange}
                   placeholder="Detalhes sobre a vista, acabamentos, posição do sol, condomínio e localização..."
@@ -729,11 +746,11 @@ function AdminFormContent() {
                 />
               </div>
 
-              {/* Upload de Fotos com Conversão Automática para WebP */}
+              {/* Upload de Fotos com Seleção da Foto Capa/Destaque */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center justify-between">
                   <span>Fotos do Imóvel</span>
-                  <span className="text-[10px] text-sky-400 font-normal">Otimizadas em WebP no R2</span>
+                  <span className="text-[10px] text-sky-400 font-normal">Otimizadas para WebP</span>
                 </label>
 
                 <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-950/50 transition-colors group cursor-pointer">
@@ -751,26 +768,57 @@ function AdminFormContent() {
                       Clique ou arraste imagens aqui para selecionar
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Conversão automática para WebP e upload ao R2 durante a publicação
+                      Conversão automática para web e upload no sistema
                     </span>
                   </div>
                 </div>
 
-                {/* Previews das fotos selecionadas */}
+                {/* Previews das fotos selecionadas com seletor de Foto Capa */}
                 {selectedFotos.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3 mt-4">
-                    {selectedFotos.map((item, idx) => (
-                      <div key={item.id || idx} className="relative rounded-xl overflow-hidden h-24 border border-slate-800 group">
-                        <img src={item.previewUrl || item.remoteUrl} alt="Preview" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removerFoto(idx)}
-                          className="absolute top-1 right-1 bg-rose-600/90 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="space-y-2 mt-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-300">Fotos Selecionadas:</span>
+                      <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-amber-400" /> Clique na estrela para escolher a Foto de Capa
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {selectedFotos.map((item, idx) => {
+                        const isCover = coverPhotoIndex === idx;
+                        return (
+                          <div 
+                            key={item.id || idx} 
+                            className={`relative rounded-xl overflow-hidden h-28 border-2 transition-all group ${
+                              isCover ? 'border-amber-400 shadow-lg shadow-amber-400/20 ring-2 ring-amber-400/30' : 'border-slate-800 hover:border-slate-600'
+                            }`}
+                          >
+                            <img src={item.previewUrl || item.remoteUrl} alt="Preview" className="w-full h-full object-cover" />
+                            
+                            {/* Botão de Definir Foto Capa */}
+                            <button
+                              type="button"
+                              onClick={() => setCoverPhotoIndex(idx)}
+                              className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer shadow-md ${
+                                isCover ? 'bg-amber-400 text-slate-950' : 'bg-slate-950/80 text-slate-300 hover:bg-amber-400 hover:text-slate-950'
+                              }`}
+                            >
+                              <Star className={`w-3 h-3 ${isCover ? 'fill-slate-950 text-slate-950' : 'text-slate-300'}`} />
+                              <span>{isCover ? 'Foto Capa' : 'Definir Capa'}</span>
+                            </button>
+
+                            {/* Botão de Excluir Foto */}
+                            <button
+                              type="button"
+                              onClick={() => removerFoto(idx)}
+                              className="absolute top-1.5 right-1.5 bg-rose-600/90 hover:bg-rose-600 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-md"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -784,7 +832,7 @@ function AdminFormContent() {
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Otimizando e enviando imagens.....</span>
+                    <span>Otimizando e enviando imagens ao sistema.....</span>
                   </>
                 ) : (
                   <>
@@ -801,16 +849,21 @@ function AdminFormContent() {
         {/* Live Preview Column */}
         <div className="lg:col-span-5">
           <div className="sticky top-28 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              <Eye className="w-4 h-4 text-sky-400" />
-              <span>Pré-visualização do Card em Tempo Real</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-sky-400" />
+                <span>Pré-visualização do Card</span>
+              </div>
+              <span className="text-amber-400 text-[11px] font-bold flex items-center gap-1">
+                <Star className="w-3 h-3 fill-amber-400" /> Capa selecionada
+              </span>
             </div>
 
             <div className="glass-card rounded-2xl overflow-hidden flex flex-col border border-sky-500/30">
               <div className="relative h-60 w-full bg-slate-950">
                 <img
                   src={previewCapa}
-                  alt="Preview"
+                  alt="Preview Capa"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
@@ -926,6 +979,7 @@ function AdminFormContent() {
                     area_m2: '80'
                   });
                   setSelectedFotos([]);
+                  setCoverPhotoIndex(0);
                   router.push('/admin');
                 }}
                 className="w-full py-2.5 text-xs font-semibold text-sky-400 hover:underline cursor-pointer"
