@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { 
   Building2, 
   UploadCloud, 
@@ -16,7 +17,12 @@ import {
   Bath,
   Car,
   Eye,
-  Loader2
+  Loader2,
+  ShieldAlert,
+  Clock,
+  RefreshCw,
+  LogOut,
+  XCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,6 +48,11 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
+  // Auth & Profile state
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // Form State
   const [formData, setFormData] = useState({
     titulo: '',
@@ -49,6 +60,7 @@ export default function AdminPage() {
     tipo: 'Apartamento',
     transacao: 'Vender',
     preco: '',
+    preco_mensal_temporada: '',
     condominio: '',
     iptu: '',
     bairro: 'Ipanema',
@@ -59,9 +71,64 @@ export default function AdminPage() {
     fotos: []
   });
 
+  useEffect(() => {
+    checkAuthAndProfile();
+  }, []);
+
+  async function checkAuthAndProfile() {
+    setAuthLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push('/login?redirectTo=/admin');
+        return;
+      }
+      setUser(user);
+
+      // Busca perfil no Supabase
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (data) {
+        setProfile(data);
+      } else {
+        // Perfil temporário ou fallback enquanto a migration de perfis não for aplicada
+        setProfile({
+          nome_completo: user.user_metadata?.nome_completo || user.email,
+          cpf: user.user_metadata?.cpf || 'Cadastrado',
+          status_verificacao: user.user_metadata?.status_verificacao || 'pendente'
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao verificar autenticação:', err);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  // Formata valor monetário: 2500000 -> "2.500.000"
+  function formatCurrency(value) {
+    const nums = value.replace(/\D/g, '');
+    if (!nums) return '';
+    return new Intl.NumberFormat('pt-BR').format(Number(nums));
+  }
+
+  // Converte string formatada de volta para número puro
+  function parseCurrency(formatted) {
+    return formatted ? formatted.replace(/\./g, '').replace(/,/g, '') : '';
+  }
+
   function handleChange(e) {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (['preco', 'condominio', 'iptu', 'preco_mensal_temporada'].includes(name)) {
+      setFormData((prev) => ({ ...prev, [name]: formatCurrency(value) }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   }
 
   async function handleFileUpload(e) {
@@ -73,7 +140,6 @@ export default function AdminPage() {
 
     for (const file of files) {
       try {
-        // 1. Tenta obter URL pré-assinada da rota /api/upload (Cloudflare R2)
         const res = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -86,7 +152,6 @@ export default function AdminPage() {
         const data = await res.json();
 
         if (res.ok && data.uploadUrl && data.publicUrl) {
-          // 2. Fazer o PUT da imagem diretamente no Cloudflare R2
           const uploadRes = await fetch(data.uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': file.type || 'image/webp' },
@@ -96,15 +161,13 @@ export default function AdminPage() {
           if (uploadRes.ok) {
             uploadedUrls.push(data.publicUrl);
           } else {
-            // Se falhar o R2 por falta de credenciais privadas, cria URL temporária de preview
             uploadedUrls.push(URL.createObjectURL(file));
           }
         } else {
-          // Fallback gracioso para preview de desenvolvimento se R2 não estiver totalmente configurado no env
           uploadedUrls.push(URL.createObjectURL(file));
         }
       } catch (err) {
-        console.warn('Fallback de imagem devido a erro de conexão:', err);
+        console.warn('Fallback de imagem:', err);
         uploadedUrls.push(URL.createObjectURL(file));
       }
     }
@@ -133,23 +196,33 @@ export default function AdminPage() {
     }
 
     setSubmitting(true);
+    setFeedback({ type: 'loading', message: 'Enviando.....' });
 
     try {
+      const payload = {
+        ...formData,
+        preco: parseCurrency(formData.preco),
+        preco_mensal_temporada: parseCurrency(formData.preco_mensal_temporada),
+        condominio: formData.transacao === 'Temporada' ? 0 : parseCurrency(formData.condominio),
+        iptu: formData.transacao === 'Temporada' ? 0 : parseCurrency(formData.iptu),
+        usuario_id: user?.id,
+      };
+
       const res = await fetch('/api/salvar-imovel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setFeedback({ type: 'success', message: 'Imóvel cadastrado com sucesso no catálogo!' });
+        setFeedback({ type: 'success', message: 'Imóvel postado com sucesso!' });
         setTimeout(() => {
           router.push('/');
-        }, 1500);
+        }, 2000);
       } else {
-        setFeedback({ type: 'error', message: data.error || 'Erro ao cadastrar imóvel no Supabase.' });
+        setFeedback({ type: 'error', message: data.error || 'Erro ao cadastrar imóvel.' });
       }
     } catch (err) {
       console.error('Erro no envio do formulário:', err);
@@ -159,11 +232,118 @@ export default function AdminPage() {
     }
   }
 
+  // 1. Tela de Carregamento Inicial
+  if (authLoading) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
+        <p className="text-xs font-semibold text-slate-400">Verificando credenciais e permissões do anunciante...</p>
+      </div>
+    );
+  }
+
+  // 2. TELA DE CONTA EM ANÁLISE DE SEGURANÇA (Se status === 'pendente')
+  if (profile && profile.status_verificacao === 'pendente') {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl text-center space-y-6">
+          
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <ShieldAlert className="w-8 h-8 animate-pulse" />
+          </div>
+
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white">Conta em Análise de Segurança</h1>
+            <p className="text-slate-300 text-sm leading-relaxed max-w-xl mx-auto mt-2">
+              Sua conta está em análise de segurança pela equipe do <strong className="text-sky-400">Imóveis Zona Sul Rio de Janeiro</strong>.
+            </p>
+          </div>
+
+          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 text-left max-w-md mx-auto space-y-3 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
+              <span className="text-slate-400 font-medium">Anunciante:</span>
+              <span className="font-bold text-white">{profile.nome_completo}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
+              <span className="text-slate-400 font-medium">Status da Verificação:</span>
+              <span className="font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Em Análise
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800/80 pb-2.5">
+              <span className="text-slate-400 font-medium">Documento (RG/CNH):</span>
+              <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-medium">E-mail:</span>
+              <span className="font-semibold text-slate-200">{user?.email}</span>
+            </div>
+          </div>
+
+          <div className="p-4 bg-sky-950/40 border border-sky-500/20 rounded-2xl text-xs text-sky-300 max-w-xl mx-auto leading-relaxed text-left">
+            🔒 <strong>Por que fazemos isso?</strong> O envio da foto do documento garante a autenticidade de cada anunciante e evita fraudes no mercado imobiliário da Zona Sul. Assim que nossa equipe validar os dados, o botão de publicação de imóveis será liberado automaticamente.
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+            <button
+              onClick={checkAuthAndProfile}
+              className="w-full sm:w-auto px-6 py-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Atualizar Status</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.push('/login');
+              }}
+              className="w-full sm:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sair da Conta</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // 3. TELA DE REJEIÇÃO DA CONTA
+  if (profile && profile.status_verificacao === 'rejeitado') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-8 sm:p-12 shadow-2xl space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
+            <XCircle className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-black text-white">Verificação Não Aprovada</h1>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            Sua solicitação de cadastro de anunciante não pôde ser aprovada. Verifique a legibilidade dos documentos enviados ou entre em contato com nosso suporte.
+          </p>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push('/login');
+            }}
+            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all"
+          >
+            Sair e Fazer Novo Cadastro
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. PAINEL DE ANÚNCIO LIBERADO (Para anunciantes 'aprovados')
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
       {/* Back button */}
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Link 
           href="/" 
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-sky-400 transition-colors"
@@ -171,6 +351,19 @@ export default function AdminPage() {
           <ArrowLeft className="w-4 h-4" />
           Voltar ao Catálogo
         </Link>
+
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-slate-400">Logado como: <strong className="text-white">{profile?.nome_completo || user?.email}</strong></span>
+          <button 
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push('/login');
+            }}
+            className="text-rose-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" /> Sair
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -191,9 +384,17 @@ export default function AdminPage() {
 
             {feedback && (
               <div className={`p-4 rounded-2xl mb-6 flex items-center gap-3 text-sm font-medium ${
-                feedback.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                feedback.type === 'success' 
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+                  : feedback.type === 'loading'
+                    ? 'bg-sky-500/10 border border-sky-500/30 text-sky-400'
+                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
               }`}>
-                {feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                {feedback.type === 'success' 
+                  ? <CheckCircle2 className="w-5 h-5 shrink-0" /> 
+                  : feedback.type === 'loading' 
+                    ? <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                    : <AlertCircle className="w-5 h-5 shrink-0" />}
                 <span>{feedback.message}</span>
               </div>
             )}
@@ -252,51 +453,90 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Preço, Condomínio, IPTU */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Preço (R$) *
-                  </label>
-                  <input
-                    type="number"
-                    name="preco"
-                    value={formData.preco}
-                    onChange={handleChange}
-                    placeholder="2500000"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    required
-                  />
-                </div>
+              {/* Preço, Condomínio, IPTU adaptáveis conforme Transação */}
+              {formData.transacao === 'Temporada' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                      Preço da Diária (R$) *
+                    </label>
+                    <input
+                      type="text"
+                      name="preco"
+                      value={formData.preco}
+                      onChange={handleChange}
+                      placeholder="450"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Condomínio (R$)
-                  </label>
-                  <input
-                    type="number"
-                    name="condominio"
-                    value={formData.condominio}
-                    onChange={handleChange}
-                    placeholder="1800"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                      <span>Preço Mensal (Temporada) (R$)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="preco_mensal_temporada"
+                      value={formData.preco_mensal_temporada}
+                      onChange={handleChange}
+                      placeholder="9.500"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                    />
+                  </div>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                      {formData.transacao === 'Alugar' ? 'Valor do Aluguel (por mês) (R$) *' : 'Preço (R$) *'}
+                    </label>
+                    <input
+                      type="text"
+                      name="preco"
+                      value={formData.preco}
+                      onChange={handleChange}
+                      placeholder={formData.transacao === 'Alugar' ? '4.500' : '2.500.000'}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    IPTU (R$)
-                  </label>
-                  <input
-                    type="number"
-                    name="iptu"
-                    value={formData.iptu}
-                    onChange={handleChange}
-                    placeholder="450"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                      Condomínio (R$)
+                    </label>
+                    <input
+                      type="text"
+                      name="condominio"
+                      value={formData.condominio}
+                      onChange={handleChange}
+                      placeholder="1.800"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                      IPTU (R$)
+                    </label>
+                    <input
+                      type="text"
+                      name="iptu"
+                      value={formData.iptu}
+                      onChange={handleChange}
+                      placeholder="450"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      inputMode="numeric"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Bairro e Metragem */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -388,10 +628,10 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Upload de Fotos (Cloudflare R2) */}
+              {/* Upload de Fotos */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Fotos do Imóvel (Cloudflare R2 Storage)
+                  Fotos do Imóvel
                 </label>
 
                 <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-950/50 transition-colors group cursor-pointer">
@@ -410,10 +650,10 @@ export default function AdminPage() {
                       <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-sky-400 transition-colors" />
                     )}
                     <span className="text-xs font-semibold text-slate-300">
-                      {uploading ? 'Processando e enviando mídias...' : 'Clique ou arraste imagens aqui para enviar'}
+                      {uploading ? 'Enviando.....' : 'Clique ou arraste imagens aqui para enviar'}
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Formatos aceitos: JPG, PNG, WEBP (convertidos automaticamente)
+                      Formatos aceitos: JPG, PNG, WEBP
                     </span>
                   </div>
                 </div>
@@ -441,17 +681,17 @@ export default function AdminPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 text-sm"
+                className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 text-sm cursor-pointer"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Publicando no Supabase...</span>
+                    <span>Enviando.....</span>
                   </>
                 ) : (
                   <>
                     <Building2 className="w-5 h-5" />
-                    <span>Publicar Imóvel na Zona Sul</span>
+                    <span>Publicar Imóvel</span>
                   </>
                 )}
               </button>
@@ -497,7 +737,13 @@ export default function AdminPage() {
                 </h3>
 
                 <p className="text-2xl font-black text-emerald-400 mb-4">
-                  {formData.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(formData.preco) : 'R$ 0,00'}
+                  {formData.preco ? (
+                    formData.transacao === 'Temporada' 
+                      ? `R$ ${formData.preco} / diária` 
+                      : formData.transacao === 'Alugar' 
+                        ? `R$ ${formData.preco} / mês` 
+                        : `R$ ${formData.preco}`
+                  ) : 'R$ 0'}
                 </p>
 
                 <div className="border-t border-slate-800 pt-3 flex items-center justify-between text-xs text-slate-300 font-medium">

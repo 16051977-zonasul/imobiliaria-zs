@@ -224,18 +224,18 @@ export default function CatalogPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
-      {/* Select Dropdown Filters Bar (Transacao | Tipo | Bairro | Quartos) */}
-      <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-6 mb-8 backdrop-blur-md shadow-lg">
+      {/* Select Dropdown Filters Bar (Com grande destaque / Fundo Branco) */}
+      <div className="bg-white border-2 border-sky-400/50 rounded-3xl p-6 sm:p-8 mb-10 shadow-2xl shadow-sky-500/10">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
-            <Filter className="w-4 h-4 text-sky-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-extrabold text-base">
+            <Filter className="w-5 h-5 text-sky-600" />
             <span>Filtros de Seleção</span>
           </div>
 
           {(selectedTransacao !== 'Todos' || selectedTipo !== 'Todos' || selectedBairro !== 'Todos' || selectedQuartos !== 'Todos' || searchTerm !== '') && (
             <button
               onClick={resetFiltros}
-              className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline underline-offset-4"
+              className="text-xs text-sky-600 hover:text-sky-800 font-bold underline underline-offset-4"
             >
               Limpar Filtros
             </button>
@@ -247,16 +247,16 @@ export default function CatalogPage() {
           
           {/* 1. Transação */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-              <Tag className="w-3.5 h-3.5 text-sky-400" />
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+              <Tag className="w-3.5 h-3.5 text-sky-600" />
               Transação
             </label>
             <select
               value={selectedTransacao}
               onChange={(e) => setSelectedTransacao(e.target.value)}
-              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
             >
-              <option value="Todos">Todas as Transações</option>
+              <option value="Todos">Transação</option>
               <option value="Vender">Vender</option>
               <option value="Alugar">Alugar</option>
               <option value="Temporada">Temporada</option>
@@ -265,16 +265,16 @@ export default function CatalogPage() {
 
           {/* 2. Tipo */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-              <Building className="w-3.5 h-3.5 text-sky-400" />
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+              <Building className="w-3.5 h-3.5 text-sky-600" />
               Tipo de Imóvel
             </label>
             <select
               value={selectedTipo}
               onChange={(e) => setSelectedTipo(e.target.value)}
-              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
             >
-              <option value="Todos">Todos os Tipos</option>
+              <option value="Todos">Tipo</option>
               <option value="Apartamento">Apartamento</option>
               <option value="Cobertura">Cobertura</option>
               <option value="Casa">Casa</option>
@@ -284,16 +284,16 @@ export default function CatalogPage() {
 
           {/* 3. Bairro */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-              <MapPin className="w-3.5 h-3.5 text-sky-400" />
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+              <MapPin className="w-3.5 h-3.5 text-sky-600" />
               Bairro
             </label>
             <select
               value={selectedBairro}
               onChange={(e) => setSelectedBairro(e.target.value)}
-              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
             >
-              <option value="Todos">Todos os Bairros da Zona Sul</option>
+              <option value="Todos">Bairro</option>
               {BAIRROS_ZONA_SUL.map((b) => (
                 <option key={b} value={b}>{b}</option>
               ))}
@@ -302,16 +302,16 @@ export default function CatalogPage() {
 
           {/* 4. Quartos */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
-              <Bed className="w-3.5 h-3.5 text-sky-400" />
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+              <Bed className="w-3.5 h-3.5 text-sky-600" />
               Quartos
             </label>
             <select
               value={selectedQuartos}
               onChange={(e) => setSelectedQuartos(e.target.value)}
-              className="bg-slate-950 text-slate-100 border border-slate-700/80 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+              className="bg-slate-50 text-slate-900 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 hover:border-sky-400 transition-all cursor-pointer shadow-sm"
             >
-              <option value="Todos">Qualquer quant. de quartos</option>
+              <option value="Todos">Quartos</option>
               <option value="1">1+ Quarto</option>
               <option value="2">2+ Quartos</option>
               <option value="3">3+ Quartos</option>
@@ -325,11 +325,6 @@ export default function CatalogPage() {
       {/* Hero Header */}
       <div className="relative rounded-3xl overflow-hidden p-8 sm:p-12 mb-8 text-center bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 border border-slate-800 shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-500/10 via-transparent to-transparent pointer-events-none" />
-        
-        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-4">
-          <MapPin className="w-3.5 h-3.5" />
-          Exclusividade na Zona Sul do Rio
-        </span>
 
         <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-4 leading-tight">
           Encontre seu próximo imóvel em <br />
