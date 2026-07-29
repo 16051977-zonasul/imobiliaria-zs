@@ -232,9 +232,15 @@ export default function PerfilPage() {
     setDeletingProperty(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const res = await fetch('/api/deletar-imovel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ id: idParaDeletar }),
       });
 
@@ -242,7 +248,7 @@ export default function PerfilPage() {
 
       if (res.ok && data.success) {
         // 1. Atualiza estritamente o estado local removendo o imóvel excluído
-        setMeusImoveis((prev) => prev.filter((item) => String(item.id) !== String(idParaDeletar) && Number(item.id) !== Number(idParaDeletar)));
+        setMeusImoveis((prev) => prev.filter((item) => String(item.id) !== String(idParaDeletar)));
         
         // 2. Define feedback de sucesso no topo da tela
         setFeedback({ 

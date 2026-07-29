@@ -3,32 +3,41 @@ import { createClient } from '@supabase/supabase-js';
 import { deleteR2Objects } from '@/lib/r2';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Cliente Admin com Service Role Key para ignorar travas de RLS na exclusão
-const supabaseAdmin = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  serviceRoleKey || 'placeholder-key'
-);
+if (!serviceRoleKey) {
+  console.error("[ERRO CRÍTICO] SUPABASE_SERVICE_ROLE_KEY não foi encontrada nas variáveis de ambiente!");
+}
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { id } = body;
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : null;
 
-    if (!id) {
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+        ...(token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : {}),
+      }
+    );
+
+    const body = await request.json();
+    if (!body?.id) {
       return NextResponse.json(
         { error: 'ID do imóvel não foi informado.' },
         { status: 400 }
       );
     }
 
-    // 1. Tratar o ID estritamente como String/UUID
-    const idUUID = String(id).trim();
+    const idUUID = String(body.id).trim();
+    console.log(`🗑️ [DELETAR IMOVEL] Tentando deletar UUID: "${idUUID}"`);
 
-    console.log(`🗑️ [DELETAR IMOVEL] Iniciando exclusão por UUID: "${idUUID}"`);
-
-    // 1.1 Busca as fotos salvas do imóvel no Supabase antes do DELETE
+    // 1. Busca as fotos salvas do imóvel antes do DELETE
     const { data: imovel } = await supabaseAdmin
       .from('imoveis')
       .select('id, fotos')
@@ -41,24 +50,24 @@ export async function POST(request) {
       await deleteR2Objects(imovel.fotos);
     }
 
-    // 3. Executa a exclusão da linha na tabela imoveis no Supabase via Admin Client usando UUID
+    // 3. Executa a deleção simplificada direta no Supabase
     const { error: deleteError, count } = await supabaseAdmin
       .from('imoveis')
       .delete({ count: 'exact' })
       .eq('id', idUUID);
 
-    console.log('Tentando deletar UUID:', idUUID, '| Linhas afetadas:', count);
+    console.log('Tentando deletar UUID:', idUUID, '| Linhas afetadas:', count, '| Erro:', deleteError);
 
     // 4. Regra de Validação Estrita: Se error existir OU se count === 0, a operação FALHOU
     if (deleteError || count === 0) {
-      console.error('❌ Erro/Falha no Supabase ao deletar imóvel (UUID):', deleteError || 'Count 0 linhas afetadas');
+      console.error('❌ Erro/Falha no Supabase ao deletar UUID:', deleteError || 'Count 0 linhas afetadas');
       return NextResponse.json(
         { error: deleteError?.message || 'Nenhum imóvel foi deletado no banco de dados.' },
         { status: 500 }
       );
     }
 
-    console.log(`✅ [DELETAR IMOVEL SUCCESS] ${count} linha(s) afetada(s) no Supabase. Registro UUID "${idUUID}" excluído definitivamente.`);
+    console.log(`✅ [DELETAR IMOVEL SUCCESS] ${count} linha(s) afetada(s) no Supabase. Registro excluído definitivamente.`);
 
     return NextResponse.json({
       success: true,
