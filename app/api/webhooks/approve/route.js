@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
+// Garante execução totalmente dinâmica na Vercel sem cache estático
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -10,10 +14,31 @@ const supabaseAdmin = createClient(
   serviceRoleKey || 'placeholder-key'
 );
 
-// Utiliza estritamente a variável de ambiente RESEND_API_KEY do .env.local
 const resendApiKey = process.env.RESEND_API_KEY;
-const resend = new Resend(resendApiKey);
 
+// Suporte a requisições GET para teste de rota e verificação de status
+export async function GET(request) {
+  return NextResponse.json({
+    status: 'ok',
+    endpoint: '/api/webhooks/approve',
+    service: 'Imóveis Zona Sul - Approve Webhook',
+    timestamp: new Date().toISOString()
+  });
+}
+
+// Suporte a preflight CORS
+export async function OPTIONS(request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+  });
+}
+
+// Manipulador principal do evento Webhook via POST
 export async function POST(request) {
   try {
     if (!resendApiKey) {
@@ -23,6 +48,8 @@ export async function POST(request) {
         { status: 500 }
       );
     }
+
+    const resend = new Resend(resendApiKey);
 
     const body = await request.json();
     console.log('📩 [WEBHOOK APPROVE RECEIVED]:', JSON.stringify(body, null, 2));
@@ -63,7 +90,7 @@ export async function POST(request) {
 
     if (!userEmail && userId) {
       try {
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
         if (userData?.user?.email) {
           userEmail = userData.user.email;
           console.log(`📧 [WEBHOOK APPROVE] E-mail recuperado via Supabase Auth: ${userEmail}`);
