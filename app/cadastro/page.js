@@ -17,7 +17,9 @@ import {
   ArrowLeft,
   ShieldCheck,
   FileCheck,
-  Clock
+  Clock,
+  Calendar,
+  Users
 } from 'lucide-react';
 
 export default function CadastroPage() {
@@ -27,6 +29,8 @@ export default function CadastroPage() {
     email: '',
     senha: '',
     cpf: '',
+    data_nascimento: '',
+    filiacao: '',
   });
 
   const [documentoFile, setDocumentoFile] = useState(null);
@@ -52,12 +56,22 @@ export default function CadastroPage() {
     return `${nums.slice(0, 3)}.${nums.slice(3, 6)}.${nums.slice(6, 9)}-${nums.slice(9)}`;
   }
 
+  // Formata Data de Nascimento: DD/MM/AAAA
+  function formatDataNascimento(val) {
+    const nums = val.replace(/\D/g, '').slice(0, 8);
+    if (nums.length <= 2) return nums;
+    if (nums.length <= 4) return `${nums.slice(0, 2)}/${nums.slice(2)}`;
+    return `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4)}`;
+  }
+
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === 'telefone') {
       setFormData((prev) => ({ ...prev, telefone: formatTelefone(value) }));
     } else if (name === 'cpf') {
       setFormData((prev) => ({ ...prev, cpf: formatCPF(value) }));
+    } else if (name === 'data_nascimento') {
+      setFormData((prev) => ({ ...prev, data_nascimento: formatDataNascimento(value) }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -81,15 +95,17 @@ export default function CadastroPage() {
       email: formData.email,
       telefone: formData.telefone,
       cpf: formData.cpf,
+      data_nascimento: formData.data_nascimento,
+      filiacao: formData.filiacao,
       senhaLength: formData.senha?.length,
       documentoFile: documentoFile?.name ?? null,
     };
     console.log('--- CADASTRO INICIADO ---', payload);
     // ─────────────────────────────────────────────────────────────────────────
 
-    if (!formData.nome_completo || !formData.email || !formData.senha || !formData.cpf) {
+    if (!formData.nome_completo || !formData.email || !formData.senha || !formData.cpf || !formData.data_nascimento || !formData.filiacao) {
       console.warn('[DIAGNÓSTICO] Bloqueado pela validação: campos obrigatórios ausentes');
-      setErrorMessage('Preencha todos os campos obrigatórios.');
+      setErrorMessage('Preencha todos os campos obrigatórios (incluindo Data de Nascimento e Filiação).');
       return;
     }
 
@@ -119,6 +135,8 @@ export default function CadastroPage() {
             nome_completo: formData.nome_completo,
             telefone: formData.telefone,
             cpf: formData.cpf,
+            data_nascimento: formData.data_nascimento,
+            filiacao: formData.filiacao,
           }
         }
       });
@@ -223,6 +241,8 @@ export default function CadastroPage() {
         nome_completo: formData.nome_completo,
         telefone: formData.telefone,
         cpf: formData.cpf,
+        data_nascimento: formData.data_nascimento,
+        filiacao: formData.filiacao,
         documento_url: documentoUrl,
         status_verificacao: 'pendente',
       };
@@ -239,7 +259,29 @@ export default function CadastroPage() {
 
       console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
 
-      // 5. Exibe a mensagem de sucesso — o formulário some e só a mensagem aparece
+      // 5. Dispara a verificação automática do documento com a OpenAI Vision (gpt-4o) em segundo plano
+      console.log('🤖 [VERIFY DOCUMENT] Disparando validação via OpenAI Vision para profile:', user.id);
+      fetch('/api/auth/verify-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: user.id,
+          cpf: formData.cpf,
+          nome_completo: formData.nome_completo,
+          data_nascimento: formData.data_nascimento,
+          filiacao: formData.filiacao,
+          documento_url: documentoUrl,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log('🤖 [VERIFY DOCUMENT RESULT] Resultado da análise IA:', data);
+        })
+        .catch((err) => {
+          console.error('❌ [VERIFY DOCUMENT FETCH ERROR]:', err);
+        });
+
+      // 6. Exibe a mensagem de sucesso — o formulário some e só a mensagem aparece
       setSuccess(true);
 
     } catch (err) {
@@ -424,6 +466,45 @@ export default function CadastroPage() {
                     value={formData.cpf}
                     onChange={handleChange}
                     placeholder="000.000.000-00"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Data de Nascimento e Filiação (Nome da Mãe/Pai) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Data de Nascimento *
+                </label>
+                <div className="relative flex items-center">
+                  <Calendar className="absolute left-4 w-5 h-5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="data_nascimento"
+                    value={formData.data_nascimento}
+                    onChange={handleChange}
+                    placeholder="DD/MM/AAAA"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Nome da Mãe ou do Pai (Filiação) *
+                </label>
+                <div className="relative flex items-center">
+                  <Users className="absolute left-4 w-5 h-5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="filiacao"
+                    value={formData.filiacao}
+                    onChange={handleChange}
+                    placeholder="Nome completo conforme documento"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                     required
                   />

@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   tipo_anunciante TEXT DEFAULT 'Sou Corretor(a)',
   creci TEXT,
   bio TEXT,
-  status_verificacao TEXT NOT NULL DEFAULT 'pendente' CHECK (status_verificacao IN ('pendente', 'aprovado', 'rejeitado')),
+  data_nascimento TEXT,
+  filiacao TEXT,
+  motivo_recusa TEXT,
+  status_verificacao TEXT NOT NULL DEFAULT 'pendente',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -26,6 +29,9 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS redes_sociais TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tipo_anunciante TEXT DEFAULT 'Sou Corretor(a)';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS creci TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS data_nascimento TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS filiacao TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS motivo_recusa TEXT;
 
 -- 2. Habilita a Segurança a Nível de Linha (RLS) para profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
