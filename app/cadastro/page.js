@@ -75,17 +75,32 @@ export default function CadastroPage() {
     e.preventDefault();
     setErrorMessage('');
 
+    // ─── DIAGNÓSTICO: validações de front-end ────────────────────────────────
+    const payload = {
+      nome_completo: formData.nome_completo,
+      email: formData.email,
+      telefone: formData.telefone,
+      cpf: formData.cpf,
+      senhaLength: formData.senha?.length,
+      documentoFile: documentoFile?.name ?? null,
+    };
+    console.log('--- CADASTRO INICIADO ---', payload);
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (!formData.nome_completo || !formData.email || !formData.senha || !formData.cpf) {
+      console.warn('[DIAGNÓSTICO] Bloqueado pela validação: campos obrigatórios ausentes');
       setErrorMessage('Preencha todos os campos obrigatórios.');
       return;
     }
 
     if (!documentoFile) {
+      console.warn('[DIAGNÓSTICO] Bloqueado pela validação: nenhum arquivo de documento selecionado');
       setErrorMessage('É obrigatório enviar a foto do documento (RG ou CNH) para validação de segurança.');
       return;
     }
 
     if (formData.senha.length < 6) {
+      console.warn('[DIAGNÓSTICO] Bloqueado pela validação: senha com menos de 6 caracteres');
       setErrorMessage('A senha deve conter no mínimo 6 caracteres.');
       return;
     }
@@ -93,7 +108,7 @@ export default function CadastroPage() {
     setLoading(true);
 
     try {
-      console.log('🚀 [SUBMIT CADASTRO] Iniciando fluxo de cadastro para:', formData.email);
+      console.log('🚀 [SUBMIT CADASTRO] Todas as validações passaram. Chamando supabase.auth.signUp para:', formData.email);
 
       // 1. Cadastra o usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -108,8 +123,15 @@ export default function CadastroPage() {
         }
       });
 
+      // ─── DIAGNÓSTICO: resultado bruto do Supabase Auth ───────────────────
+      console.log('--- ERRO DO SUPABASE ---', authError);
+      console.log('--- DADOS DO SUPABASE ---', authData);
+      console.log('[DIAGNÓSTICO] user retornado:', authData?.user ?? 'NENHUM');
+      console.log('[DIAGNÓSTICO] session retornada:', authData?.session ?? 'NENHUMA (email não confirmado ainda)');
+      // ─────────────────────────────────────────────────────────────────────
+
       if (authError) {
-        console.error('❌ [SUPABASE AUTH ERROR]:', authError);
+        console.error('❌ [SUPABASE AUTH ERROR]:', authError.status, authError.code, authError.message);
         if (authError.message.includes('User already registered') || authError.message.includes('already registered')) {
           throw new Error('Erro ao criar sua conta no nosso sistema: este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
         }
