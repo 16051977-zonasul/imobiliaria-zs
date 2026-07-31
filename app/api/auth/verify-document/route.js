@@ -128,18 +128,44 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
           ],
         },
       ],
-      response_format: { type: 'json_object' },
+      max_tokens: 500,
       temperature: 0.1,
     });
 
+    const finishReason = completion.choices[0]?.finish_reason;
     const responseContent = completion.choices[0]?.message?.content;
-    console.log('🤖 [API VERIFY-DOCUMENT] Resposta recebida da OpenAI:', responseContent);
+    console.log('🤖 [API VERIFY-DOCUMENT] Resposta recebida da OpenAI (finish_reason:', finishReason, '):', responseContent);
+
+    // Se o modelo não gerou conteúdo (imagem recusada, moderação, etc.)
+    if (!responseContent) {
+      console.error('❌ [API VERIFY-DOCUMENT] OpenAI retornou resposta vazia. finish_reason:', finishReason);
+      await supabaseAdmin
+        .from('profiles')
+        .update({
+          status_verificacao: 'recusado',
+          motivo_recusa: 'A imagem enviada não pôde ser processada pelo sistema de verificação. Envie uma foto nítida do documento.',
+        })
+        .eq('id', profile_id);
+
+      return NextResponse.json(
+        {
+          success: false,
+          status: 'recusado',
+          motivo: 'A imagem enviada não pôde ser processada. Envie uma foto nítida do documento (CNH ou RG).',
+        },
+        { status: 422 }
+      );
+    }
 
     let extracted = {};
     try {
-      extracted = JSON.parse(responseContent || '{}');
+      // Extrai JSON de blocos markdown ```json ... ``` ou diretamente
+      const jsonMatch = responseContent.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+                        responseContent.match(/(\{[\s\S]*\})/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : responseContent;
+      extracted = JSON.parse(jsonStr.trim());
     } catch (parseErr) {
-      console.error('❌ [API VERIFY-DOCUMENT] Erro ao parsear JSON da OpenAI:', parseErr);
+      console.error('❌ [API VERIFY-DOCUMENT] Erro ao parsear JSON da OpenAI:', parseErr, '| Conteúdo bruto:', responseContent);
     }
 
     const {
