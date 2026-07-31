@@ -32,7 +32,8 @@ export default function CadastroPage() {
   const [documentoFile, setDocumentoFile] = useState(null);
   const [documentoPreview, setDocumentoPreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Formata Telefone: (21) 99999-9999
   function formatTelefone(val) {
@@ -72,25 +73,24 @@ export default function CadastroPage() {
 
   async function handleCadastro(e) {
     e.preventDefault();
-    setFeedback(null);
+    setErrorMessage('');
 
     if (!formData.nome_completo || !formData.email || !formData.senha || !formData.cpf) {
-      setFeedback({ type: 'error', message: 'Preencha todos os campos obrigatórios.' });
+      setErrorMessage('Preencha todos os campos obrigatórios.');
       return;
     }
 
     if (!documentoFile) {
-      setFeedback({ type: 'error', message: 'É obrigatório enviar a foto do documento (RG ou CNH) para validação de segurança.' });
+      setErrorMessage('É obrigatório enviar a foto do documento (RG ou CNH) para validação de segurança.');
       return;
     }
 
     if (formData.senha.length < 6) {
-      setFeedback({ type: 'error', message: 'A senha deve conter no mínimo 6 caracteres.' });
+      setErrorMessage('A senha deve conter no mínimo 6 caracteres.');
       return;
     }
 
     setLoading(true);
-    setFeedback({ type: 'loading', message: 'Criando sua conta, aguarde...' });
 
     try {
       console.log('🚀 [SUBMIT CADASTRO] Iniciando fluxo de cadastro para:', formData.email);
@@ -110,13 +110,16 @@ export default function CadastroPage() {
 
       if (authError) {
         console.error('❌ [SUPABASE AUTH ERROR]:', authError);
-        throw new Error(`Erro ao criar conta no Supabase: ${authError.message}`);
+        if (authError.message.includes('User already registered') || authError.message.includes('already registered')) {
+          throw new Error('Erro ao criar sua conta no nosso sistema: este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
+        }
+        throw new Error('Erro ao processar seu cadastro no nosso sistema. Tente novamente.');
       }
 
       let user = authData?.user;
       if (!user) {
         console.error('❌ [SUPABASE AUTH ERROR]: Nenhum usuário retornado pelo Auth.');
-        throw new Error('Não foi possível obter o UUID do usuário cadastrado no Supabase Auth.');
+        throw new Error('Não foi possível obter os dados do usuário cadastrado. Tente novamente.');
       }
 
       console.log('✅ [SUPABASE AUTH SUCCESS] Usuário criado com sucesso. UUID:', user.id);
@@ -139,7 +142,6 @@ export default function CadastroPage() {
 
       // 3. Upload da foto do documento para o bucket 'documentos' no Supabase Storage
       let documentoUrl = '';
-      const fileExt = documentoFile.name.split('.').pop();
       const cleanFileName = documentoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const storagePath = `${user.id}/${Date.now()}_${cleanFileName}`;
 
@@ -170,7 +172,7 @@ export default function CadastroPage() {
           console.log('✅ [STORAGE API SUCCESS] Documento salvo via API:', documentoUrl);
         } else {
           console.error('❌ [STORAGE API ERROR]:', uploadJson.error);
-          throw new Error(`Erro ao enviar documento para o Supabase Storage: ${uploadJson.error || storageError.message}`);
+          throw new Error(`upload_documento: ${uploadJson.error || storageError.message}`);
         }
       } else {
         console.log('✅ [STORAGE CLIENT SUCCESS] Upload concluído:', storageData);
@@ -210,24 +212,26 @@ export default function CadastroPage() {
 
       if (profileError) {
         console.error('❌ [DATABASE PROFILE ERROR]:', profileError);
-        throw new Error(`Erro ao salvar perfil no Supabase (profiles): ${profileError.message} (Código: ${profileError.code || 'RLS/DB'})`);
+        throw new Error(`Erro ao salvar perfil no nosso sistema. Tente novamente. (${profileError.code || 'DB'})`);
       }
 
       console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
 
-      // 5. Exibe a mensagem de sucesso fixa sem nenhum redirecionamento automático
-      setFeedback({ 
-        type: 'success',
-        title: 'Cadastro realizado com sucesso!',
-        message: 'Seus dados e documentos foram recebidos. A sua conta está com o status PENDENTE e aguarda a aprovação da equipe do Imóveis Zona Sul Rio de Janeiro para liberação do acesso.' 
-      });
+      // 5. Exibe a mensagem de sucesso — o formulário some e só a mensagem aparece
+      setSuccess(true);
 
     } catch (err) {
       console.error('❌ [ERRO CRÍTICO NO NOVO CADASTRO]:', err);
-      setFeedback({ 
-        type: 'error', 
-        message: err.message || 'Erro ao realizar cadastro no Supabase. Verifique o console.' 
-      });
+      // Erro de upload de documento — mensagem específica
+      if (
+        err.message.includes('upload_documento') ||
+        err.message.toLowerCase().includes('storage') ||
+        err.message.toLowerCase().includes('upload')
+      ) {
+        setErrorMessage('Erro ao enviar o documento para o nosso sistema. Verifique o arquivo e tente novamente.');
+      } else {
+        setErrorMessage(err.message || 'Ocorreu um erro inesperado no nosso sistema. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
@@ -261,36 +265,52 @@ export default function CadastroPage() {
 
         {/* Card Form */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-2xl">
-          
-          {feedback && (
-            <div className={`p-5 rounded-2xl mb-6 text-sm font-medium transition-all ${
-              feedback.type === 'success' 
-                ? 'bg-emerald-950/50 border-2 border-emerald-500/50 text-emerald-300 shadow-2xl shadow-emerald-500/10' 
-                : feedback.type === 'loading'
-                  ? 'bg-sky-500/10 border border-sky-500/30 text-sky-400'
-                  : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-            }`}>
-              {feedback.type === 'success' ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2.5 text-emerald-400 font-black text-base border-b border-emerald-500/20 pb-3">
-                    <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
-                    <span>Cadastro realizado com sucesso!</span>
-                  </div>
-                  <p className="text-slate-200 text-xs sm:text-sm leading-relaxed font-normal">
-                    Seus dados e documentos foram recebidos. A sua conta está com o status <strong className="text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 font-bold tracking-wide">PENDENTE</strong> e aguarda a aprovação da equipe do <strong>Imóveis Zona Sul Rio de Janeiro</strong> para liberação do acesso.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {feedback.type === 'loading'
-                    ? <Loader2 className="w-5 h-5 animate-spin shrink-0" />
-                    : <AlertCircle className="w-5 h-5 shrink-0" />}
-                  <span>{feedback.message}</span>
-                </div>
-              )}
+
+          {/* Mensagem de Erro */}
+          {errorMessage && (
+            <div className="flex items-start gap-3 bg-rose-950/50 border border-rose-500/30 text-rose-200 p-4 rounded-2xl mb-6 text-sm">
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400 mt-0.5" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
+          {/* Mensagem de SUCESSO — formulário fica oculto */}
+          {success ? (
+            <div className="rounded-2xl bg-emerald-950/50 p-6 border-2 border-emerald-500/30 shadow-xl shadow-emerald-500/10 space-y-4">
+              <div className="flex items-center gap-2.5 text-emerald-400 font-black text-base border-b border-emerald-500/20 pb-4">
+                <CheckCircle2 className="w-6 h-6 shrink-0" />
+                <span>Cadastro realizado com sucesso!</span>
+              </div>
+
+              <div className="text-sm text-slate-200 space-y-3">
+                <p>
+                  <strong className="text-white">Passo 1 (Importante):</strong> Enviamos um e-mail de confirmação para{' '}
+                  <strong className="text-sky-300">{formData.email}</strong>.{' '}
+                  <strong>Clique no link presente nesse e-mail para ativar sua conta.</strong>
+                </p>
+                <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                  ⚠️ Caso não encontre na caixa de entrada, verifique sua pasta de{' '}
+                  <strong>Spam / Lixo Eletrônico</strong>.
+                </p>
+                <hr className="border-emerald-500/20" />
+                <p className="text-xs text-slate-300">
+                  <strong className="text-white">Passo 2:</strong> Seus dados e documentos já foram recebidos. A conta está com o status{' '}
+                  <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-bold tracking-wide text-xs">PENDENTE</span>{' '}
+                  e aguarda a verificação da equipe do{' '}
+                  <strong>Imóveis Zona Sul Rio de Janeiro</strong> para liberação de anúncios.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-2 text-xs font-bold text-sky-400 hover:text-sky-300 underline underline-offset-4 transition-colors"
+                >
+                  Já confirmei meu e-mail → Fazer Login
+                </Link>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleCadastro} className="space-y-5">
             
             {/* Nome Completo */}
@@ -461,8 +481,9 @@ export default function CadastroPage() {
             </button>
 
           </form>
+          )} {/* fim do bloco success ? ... : <form> */}
 
-          {/* Login Redirection Footer */}
+          {/* Login Redirection Footer — exibido sempre */}
           <div className="mt-6 pt-6 border-t border-slate-800 text-center">
             <p className="text-xs text-slate-400">
               Já possui conta cadastrada?{' '}
