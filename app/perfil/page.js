@@ -324,6 +324,11 @@ export default function PerfilPage() {
     } catch (err) {
       console.error('Erro no descadastro:', err);
       alert('Falha na comunicação com o servidor ao excluir conta.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   // Reenvio de documento caso o status seja recusado
   async function handleReenviarDocumento(e) {
     e.preventDefault();
