@@ -90,7 +90,7 @@ export async function POST(request) {
       const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
-          status_verificacao: 'recusado',
+          status_verificacao: 'rejeitado',
         })
         .eq('id', profile_id)
         .select();
@@ -102,7 +102,7 @@ export async function POST(request) {
       }
 
       return NextResponse.json(
-        { success: false, status: 'recusado', motivo: 'Erro ao obter imagem do documento para análise.' },
+        { success: false, status: 'rejeitado', motivo: 'Erro ao obter imagem do documento para análise.' },
         { status: 400 }
       );
     }
@@ -159,7 +159,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
-          status_verificacao: 'recusado',
+          status_verificacao: 'rejeitado',
         })
         .eq('id', profile_id)
         .select();
@@ -173,7 +173,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       return NextResponse.json(
         {
           success: false,
-          status: 'recusado',
+          status: 'rejeitado',
           motivo: 'A imagem enviada não pôde ser processada. Envie uma foto nítida do documento (CNH ou RG).',
         },
         { status: 422 }
@@ -321,7 +321,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
-          status_verificacao: 'recusado',
+          status_verificacao: 'rejeitado',
         })
         .eq('id', profile_id)
         .select();
@@ -350,7 +350,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
 
       return NextResponse.json({
         success: false,
-        status: 'recusado',
+        status: 'rejeitado',
         motivo,
         extracted: {
           nome_extraido,
