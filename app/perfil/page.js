@@ -470,15 +470,17 @@ export default function PerfilPage() {
     );
   }
 
-  // 2. TRAVA DE ACESSO: CADASTRO RECUSADO (status = 'recusado' ou 'rejeitado')
-  if (profile && (profile.status_verificacao === 'recusado' || profile.status_verificacao === 'rejeitado')) {
+  // 2. TRAVA DE ACESSO: CADASTRO NÃO ENCONTRADO OU RECUSADO
+  if (!profile || profile.status_verificacao === 'recusado' || profile.status_verificacao === 'rejeitado') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
         <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
+          {/* Ícone */}
           <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
             <XCircle className="w-8 h-8" />
           </div>
 
+          {/* Título */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-black text-white">Cadastro Recusado</h1>
             <p className="text-rose-400 text-xs font-bold uppercase tracking-wider">
@@ -493,103 +495,30 @@ export default function PerfilPage() {
               Motivo da Recusa:
             </p>
             <p className="text-xs sm:text-sm text-rose-100 leading-relaxed">
-              {profile.motivo_recusa || 'Os dados contidos na imagem do documento enviada não conferem com as informações digitadas no formulário (Nome, CPF, Data de Nascimento ou Filiação).'}
+              {profile?.motivo_recusa || 'Os dados contidos na imagem do documento enviada não conferem com as informações digitadas no formulário (Nome, CPF, Data de Nascimento ou Filiação).'}
             </p>
           </div>
 
-          {/* Formulário de Reenvio do Documento */}
-          <form onSubmit={handleReenviarDocumento} className="bg-slate-950 border border-slate-800 rounded-2xl p-6 text-left space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <UploadCloud className="w-4 h-4 text-sky-400" />
-              Reenviar Foto do Documento (RG ou CNH)
-            </h3>
-            <p className="text-xs text-slate-400">
-              Tire uma nova foto legível e nítida da sua CNH ou RG (PNG, JPG ou WEBP) onde seja possível identificar Nome, CPF, Nascimento e Filiação.
+          {/* Orientação e botão de novo cadastro */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 text-left space-y-4">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Como os dados não conferem, o cadastro anterior foi cancelado. Por favor, faça um novo cadastro com as informações e documentos corretos.
             </p>
-
-            {reuploadError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{reuploadError}</span>
-              </div>
-            )}
-
-            <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-xl p-5 text-center bg-slate-900/50 transition-colors cursor-pointer">
-              <input
-                type="file"
-                accept="image/png, image/jpeg, image/jpg, image/webp"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                    setReuploadError('Formato inválido! Envie uma foto/imagem da sua CNH ou RG (PNG, JPG ou WEBP). PDFs não são aceitos.');
-                    setReuploadFile(null);
-                    setReuploadPreview(null);
-                    e.target.value = '';
-                    return;
-                  }
-                  setReuploadError('');
-                  setReuploadFile(file);
-                  setReuploadPreview(URL.createObjectURL(file));
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                required
-              />
-              <div className="flex flex-col items-center justify-center gap-2">
-                {reuploadFile ? (
-                  <FileCheck className="w-6 h-6 text-emerald-400" />
-                ) : (
-                  <UploadCloud className="w-6 h-6 text-slate-400" />
-                )}
-                <span className="text-xs font-semibold text-slate-300">
-                  {reuploadFile ? reuploadFile.name : 'Clique para escolher uma nova foto (PNG, JPG ou WEBP)'}
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  Apenas fotos/imagens (PNG, JPG ou WEBP). Arquivos PDF não são aceitos.
-                </span>
-              </div>
-            </div>
-
-            {reuploadPreview && (
-              <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
-                <img src={reuploadPreview} alt="Preview do novo documento" className="w-full h-full object-contain" />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={reuploading || !reuploadFile}
-              className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50"
-            >
-              {reuploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Enviando e validando com IA...</span>
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="w-4 h-4" />
-                  <span>Reenviar Documento para Análise</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="pt-2 text-center">
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
                 router.push('/cadastro');
               }}
-              className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+              className="w-full bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 text-xs cursor-pointer"
             >
-              Sair e Fazer Novo Cadastro
+              Refazer Cadastro
             </button>
           </div>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
