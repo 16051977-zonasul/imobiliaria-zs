@@ -251,17 +251,46 @@ export default function CadastroPage() {
         status_verificacao: 'pendente',
       };
 
-      const { data: profileData, error: profileError } = await supabase
+      // Verifica se o perfil já existe para esse ID
+      const { data: existingProfile, error: searchError } = await supabase
         .from('profiles')
-        .upsert([profilePayload])
-        .select();
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      if (profileError) {
-        console.error('❌ [DATABASE PROFILE ERROR]:', profileError);
-        throw new Error(`Erro ao salvar perfil no nosso sistema. Tente novamente. (${profileError.code || 'DB'})`);
+      if (existingProfile) {
+        console.log('🔄 [DB PROFILE] Perfil já existente. Status atual:', existingProfile.status_verificacao);
+        if (existingProfile.status_verificacao === 'rejeitado') {
+          console.log('🔄 [DB PROFILE] Atualizando perfil rejeitado para pendente...');
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(profilePayload)
+            .eq('id', user.id);
+            
+          if (updateError) {
+            console.error('❌ [DATABASE UPDATE ERROR]:', updateError);
+            throw new Error('Erro ao atualizar seu cadastro. Tente novamente.');
+          }
+        } else {
+          throw new Error(`Este usuário já possui um cadastro (Status: ${existingProfile.status_verificacao}). Faça login.`);
+        }
+      } else {
+        // Se não existe, faz a inserção
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .insert([profilePayload])
+          .select();
+
+        if (profileError) {
+          console.error('❌ [DATABASE PROFILE ERROR]:', profileError);
+          // 23503 indica foreign key violation: provável ID falso retornado pelo Auth (proteção de e-mail ativada)
+          if (profileError.code === '23503') {
+            throw new Error('Este e-mail já está cadastrado no sistema. Por favor, vá para a tela de Login e acesse seu perfil.');
+          }
+          throw new Error(`Erro ao salvar perfil no nosso sistema. Tente novamente. (${profileError.code || 'DB'})`);
+        }
+        console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
       }
-
-      console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
 
       // 5. Dispara a verificação automática do documento com a OpenAI Vision (gpt-4o) em segundo plano
       console.log('🤖 [VERIFY DOCUMENT] Disparando validação via OpenAI Vision para profile:', user.id);
