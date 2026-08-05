@@ -166,14 +166,14 @@ Extraia rigorosamente os seguintes 4 dados:
 1. nome_extraido: Nome completo da pessoa titular do documento.
 2. cpf_extraido: Número do CPF da pessoa (apenas dígitos ou formatado).
 3. data_nascimento_extraida: Data de nascimento (no formato DD/MM/AAAA ou AAAA-MM-DD).
-4. filiacao_extraida: Nome completo da mãe ou do pai listado na filiação do documento.
+4. filiacao_extraida: Todos os nomes presentes no campo Filiação do documento (mãe E pai, se ambos estiverem presentes). Retorne como uma única string com todos os nomes separados por vírgula ou espaço, ou como array de strings. Não omita nenhum nome.
 
 Responda ESTRITAMENTE em formato JSON estruturado assim:
 {
   "nome_extraido": "...",
   "cpf_extraido": "...",
   "data_nascimento_extraida": "...",
-  "filiacao_extraida": "..."
+  "filiacao_extraida": "..." // string com TODOS os nomes de filiação (mãe e pai)
 }
 Se algum dado estiver ausente ou ilegível no documento, preencha o valor como null.`;
 
@@ -297,15 +297,29 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
     }
 
     // Validar Filiação (Nome da Mãe / Pai)
-    if (!docFiliacao) {
+    // filiacao_extraida pode conter ambos os nomes (mãe e pai) numa única string ou array
+    // Normaliza o campo extraído: se vier array, junta tudo
+    const rawFiliacao = Array.isArray(filiacao_extraida)
+      ? filiacao_extraida.join(' ')
+      : (filiacao_extraida || '');
+    const docFiliacaoFull = cleanText(rawFiliacao); // string completa com mãe + pai
+
+    if (!docFiliacaoFull) {
       divergencias.push('Filiação (nome da mãe/pai) não identificada no documento.');
     } else {
-      const inputFilWords = inputFiliacao.split(' ').filter((w) => w.length > 2);
-      const docFilWords = docFiliacao.split(' ').filter((w) => w.length > 2);
-      const matchedFil = inputFilWords.filter((w) => docFilWords.includes(w));
+      // Verifica se o texto digitado está CONTIDO na string completa de filiação extraída
+      // (o usuário pode ter digitado apenas o nome da mãe ou apenas o nome do pai)
+      const filiacaoContida = docFiliacaoFull.includes(inputFiliacao);
 
-      if (matchedFil.length < Math.min(2, inputFilWords.length)) {
-        divergencias.push(`Filiação digitada (${filiacao}) não confere com o documento (${filiacao_extraida}).`);
+      // Verificação alternativa por palavras significativas (tolerância a palavras curtas/artigos)
+      const inputFilWords = inputFiliacao.split(' ').filter((w) => w.length > 2);
+      const matchedFil = inputFilWords.filter((w) => docFiliacaoFull.includes(w));
+      const palavrasMatcham = inputFilWords.length > 0 && matchedFil.length >= Math.min(2, inputFilWords.length);
+
+      console.log('📊 [FILIACAO CHECK]', { inputFiliacao, docFiliacaoFull, filiacaoContida, palavrasMatcham, inputFilWords, matchedFil });
+
+      if (!filiacaoContida && !palavrasMatcham) {
+        divergencias.push(`Filiação digitada (${filiacao}) não confere com o documento (${rawFiliacao}).`);
       }
     }
 
