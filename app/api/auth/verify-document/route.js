@@ -24,7 +24,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 async function handleRejection(profileId, motivo) {
   console.log(`🗑️ [REJECTION FLOW] Iniciando fluxo de rejeição para ID: ${profileId} | Motivo: ${motivo}`);
 
-  // 1. Buscar e-mail do usuário antes de deletar
+  // 1. Buscar e-mail do usuário antes de deletar a conta
   let userEmail = null;
   try {
     const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profileId);
@@ -34,28 +34,7 @@ async function handleRejection(profileId, motivo) {
     console.error('❌ [REJECTION FLOW] Erro ao buscar e-mail do usuário:', err);
   }
 
-  // 2. Enviar e-mail de recusa via Resend
-  if (userEmail && resend) {
-    try {
-      await resend.emails.send({
-        from: 'Imobiliária ZS <onboarding@resend.dev>',
-        to: userEmail,
-        subject: 'Aviso sobre seu cadastro - Documento Recusado',
-        html: `<p>Olá,</p>
-<p>Notamos uma divergência nos dados enviados e <strong>seu documento não pôde ser aprovado.</strong></p>
-<p><strong>Motivo apontado:</strong> ${motivo}</p>
-<p>Sua conta foi removida do nosso sistema para que você possa realizar um novo cadastro com os dados corretos.</p>
-<p>
-  <a href="https://imoveis.zonasulriodejaneiro.com.br/recusado" style="display:inline-block;background:#e11d48;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver Detalhes e Refazer Cadastro</a>
-</p>`
-      });
-      console.log('📧 [REJECTION FLOW] E-mail de recusa enviado para:', userEmail);
-    } catch (emailErr) {
-      console.error('❌ [REJECTION FLOW] Erro ao enviar e-mail de recusa:', emailErr);
-    }
-  }
-
-  // 3. DELETE da linha em public.profiles
+  // 2. Apagar imediatamente a conta do usuário no Supabase (public.profiles e auth.users)
   try {
     const { error: deleteProfileError } = await supabaseAdmin
       .from('profiles')
@@ -71,7 +50,6 @@ async function handleRejection(profileId, motivo) {
     console.error('❌ [REJECTION FLOW] Exceção ao deletar perfil:', err);
   }
 
-  // 4. DELETE do usuário em auth.users
   try {
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(profileId);
 
@@ -82,6 +60,28 @@ async function handleRejection(profileId, motivo) {
     }
   } catch (err) {
     console.error('❌ [REJECTION FLOW] Exceção ao deletar auth user:', err);
+  }
+
+  // 3. Disparar e-mail transacional direto via Resend
+  if (userEmail && resend) {
+    try {
+      await resend.emails.send({
+        from: 'Imobiliária ZS <onboarding@resend.dev>',
+        to: userEmail,
+        subject: 'Imóveis Zona Sul - Cadastro Rejeitado',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333333;">
+  <p style="font-size: 15px; line-height: 1.6; margin-bottom: 20px;">
+    Seu cadastro foi cancelado devido a divergências nos dados enviados (Nome, CPF, Data de Nascimento ou Filiação). Por favor, refaça o seu cadastro com os dados e documentos corretos.
+  </p>
+  <div style="margin-top: 25px; margin-bottom: 25px;">
+    <a href="https://imoveis.zonasulriodejaneiro.com.br/cadastro" style="display: inline-block; background-color: #e11d48; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">Refazer Cadastro</a>
+  </div>
+</div>`
+      });
+      console.log('📧 [REJECTION FLOW] E-mail de recusa enviado para:', userEmail);
+    } catch (emailErr) {
+      console.error('❌ [REJECTION FLOW] Erro ao enviar e-mail de recusa via Resend:', emailErr);
+    }
   }
 }
 
