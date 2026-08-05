@@ -416,7 +416,7 @@ function PerfilPageInner() {
   // Redirect se status=recusado na URL
   useEffect(() => {
     if (statusParam === 'recusado') {
-      router.replace('/cadastro-recusado');
+      router.replace('/recusado');
     }
   }, [statusParam, router]);
 

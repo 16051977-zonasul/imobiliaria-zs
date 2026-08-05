@@ -46,7 +46,7 @@ async function handleRejection(profileId, motivo) {
 <p><strong>Motivo apontado:</strong> ${motivo}</p>
 <p>Sua conta foi removida do nosso sistema para que você possa realizar um novo cadastro com os dados corretos.</p>
 <p>
-  <a href="https://imoveis.zonasulriodejaneiro.com.br/cadastro-recusado" style="display:inline-block;background:#e11d48;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver Detalhes e Refazer Cadastro</a>
+  <a href="https://imoveis.zonasulriodejaneiro.com.br/recusado" style="display:inline-block;background:#e11d48;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver Detalhes e Refazer Cadastro</a>
 </p>`
       });
       console.log('📧 [REJECTION FLOW] E-mail de recusa enviado para:', userEmail);
