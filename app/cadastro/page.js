@@ -201,7 +201,8 @@ export default function CadastroPage() {
       // 4. Se a validação RETORNAR APROVADA: Executa o supabase.auth.signUp() normalmente
       console.log('🚀 [SUBMIT CADASTRO] Documento APROVADO! Criando conta no Supabase Auth para:', formData.email);
 
-      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/perfil` : 'https://imoveiszonasulrj.com.br/perfil';
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://imoveis.zonasulriodejaneiro.com.br';
+      const redirectUrl = `${origin}/api/auth/callback?next=/perfil`;
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
