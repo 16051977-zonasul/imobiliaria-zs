@@ -18,7 +18,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function POST(request) {
   try {
@@ -290,7 +290,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         try {
           const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile_id);
           const userEmail = userData?.user?.email;
-          if (userEmail) {
+          if (userEmail && resend) {
             await resend.emails.send({
               from: 'Imobiliária ZS <onboarding@resend.dev>',
               to: userEmail,
@@ -334,7 +334,7 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         try {
           const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile_id);
           const userEmail = userData?.user?.email;
-          if (userEmail) {
+          if (userEmail && resend) {
             await resend.emails.send({
               from: 'Imobiliária ZS <onboarding@resend.dev>',
               to: userEmail,
