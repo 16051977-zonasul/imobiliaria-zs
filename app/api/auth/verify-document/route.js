@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
+import { Resend } from 'resend';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,6 +17,8 @@ const supabaseAdmin = createClient(
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
   try {
@@ -283,6 +286,22 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para aprovado:', JSON.stringify(updateError));
       } else {
         console.log('✅ [API VERIFY-DOCUMENT] UPDATE (aprovado) concluído com sucesso. Linhas afetadas:', updateData);
+        
+        try {
+          const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile_id);
+          const userEmail = userData?.user?.email;
+          if (userEmail) {
+            await resend.emails.send({
+              from: 'Imobiliária ZS <onboarding@resend.dev>',
+              to: userEmail,
+              subject: 'Sua conta foi aprovada!',
+              html: '<p>Olá!</p><p>Seus documentos foram validados pela nossa equipe e <strong>sua conta foi aprovada com sucesso!</strong></p><p>Você já pode acessar todos os recursos do painel da Imobiliária ZS.</p>'
+            });
+            console.log('📧 E-mail de aprovação enviado para:', userEmail);
+          }
+        } catch (emailErr) {
+          console.error('❌ Erro ao enviar e-mail de aprovação via Resend:', emailErr);
+        }
       }
 
       return NextResponse.json({
@@ -311,6 +330,22 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado:', JSON.stringify(updateError));
       } else {
         console.log('✅ [API VERIFY-DOCUMENT] UPDATE (recusado) concluído com sucesso. Linhas afetadas:', updateData);
+        
+        try {
+          const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile_id);
+          const userEmail = userData?.user?.email;
+          if (userEmail) {
+            await resend.emails.send({
+              from: 'Imobiliária ZS <onboarding@resend.dev>',
+              to: userEmail,
+              subject: 'Aviso sobre seu cadastro - Documento Recusado',
+              html: `<p>Olá,</p><p>Notamos uma divergência nos dados enviados e <strong>seu documento não pôde ser aprovado.</strong></p><p><strong>Motivo apontado:</strong> ${motivo}</p><p>Por favor, acesse seu perfil no nosso sistema e envie a imagem do documento (RG ou CNH) de forma nítida novamente.</p>`
+            });
+            console.log('📧 E-mail de recusa enviado para:', userEmail);
+          }
+        } catch (emailErr) {
+          console.error('❌ Erro ao enviar e-mail de recusa via Resend:', emailErr);
+        }
       }
 
       return NextResponse.json({
