@@ -324,8 +324,74 @@ export default function PerfilPage() {
     } catch (err) {
       console.error('Erro no descadastro:', err);
       alert('Falha na comunicação com o servidor ao excluir conta.');
+  // Reenvio de documento caso o status seja recusado
+  async function handleReenviarDocumento(e) {
+    e.preventDefault();
+    if (!reuploadFile) {
+      setReuploadError('Selecione uma foto da sua CNH ou RG (PNG, JPG ou WEBP).');
+      return;
+    }
+
+    setReuploading(true);
+    setReuploadError('');
+
+    try {
+      const docFormData = new FormData();
+      docFormData.append('file', reuploadFile);
+      docFormData.append('userId', user.id);
+
+      const res = await fetch('/api/upload-documento', {
+        method: 'POST',
+        body: docFormData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.documentoUrl) {
+        throw new Error(data.error || 'Erro ao enviar a foto do documento.');
+      }
+
+      const novoDocumentoUrl = data.documentoUrl;
+
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({
+          documento_url: novoDocumentoUrl,
+          status_verificacao: 'pendente',
+          motivo_recusa: null,
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        throw new Error(`Erro ao atualizar perfil: ${dbError.message}`);
+      }
+
+      fetch('/api/auth/verify-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: user.id,
+          cpf: profile.cpf || user.user_metadata?.cpf,
+          nome_completo: profile.nome_completo,
+          data_nascimento: profile.data_nascimento || user.user_metadata?.data_nascimento,
+          filiacao: profile.filiacao || user.user_metadata?.filiacao,
+          documento_url: novoDocumentoUrl,
+        }),
+      }).catch((err) => console.error('Erro na revalidação por IA:', err));
+
+      setProfile((prev) => ({
+        ...prev,
+        status_verificacao: 'pendente',
+        documento_url: novoDocumentoUrl,
+        motivo_recusa: null,
+      }));
+      setReuploadFile(null);
+      setReuploadPreview(null);
+
+    } catch (err) {
+      console.error('Erro no reenvio do documento:', err);
+      setReuploadError(err.message || 'Falha ao reenviar documento.');
     } finally {
-      setDeletingAccount(false);
+      setReuploading(false);
     }
   }
 
@@ -579,11 +645,11 @@ export default function PerfilPage() {
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
-                router.push('/login');
+                router.push('/cadastro');
               }}
-              className="text-xs text-slate-400 hover:text-white underline underline-offset-4 cursor-pointer"
+              className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
             >
-              Sair da Conta
+              Sair e Fazer Novo Cadastro
             </button>
           </div>
         </div>

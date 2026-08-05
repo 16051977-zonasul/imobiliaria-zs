@@ -20,6 +20,69 @@ const openai = new OpenAI({
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+// ─── Helper: fluxo completo de rejeição (e-mail + DELETE profile + DELETE auth user) ───
+async function handleRejection(profileId, motivo) {
+  console.log(`🗑️ [REJECTION FLOW] Iniciando fluxo de rejeição para ID: ${profileId} | Motivo: ${motivo}`);
+
+  // 1. Buscar e-mail do usuário antes de deletar
+  let userEmail = null;
+  try {
+    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profileId);
+    userEmail = userData?.user?.email;
+    console.log('📧 [REJECTION FLOW] E-mail do usuário:', userEmail || 'NÃO ENCONTRADO');
+  } catch (err) {
+    console.error('❌ [REJECTION FLOW] Erro ao buscar e-mail do usuário:', err);
+  }
+
+  // 2. Enviar e-mail de recusa via Resend
+  if (userEmail && resend) {
+    try {
+      await resend.emails.send({
+        from: 'Imobiliária ZS <onboarding@resend.dev>',
+        to: userEmail,
+        subject: 'Aviso sobre seu cadastro - Documento Recusado',
+        html: `<p>Olá,</p>
+<p>Notamos uma divergência nos dados enviados e <strong>seu documento não pôde ser aprovado.</strong></p>
+<p><strong>Motivo apontado:</strong> ${motivo}</p>
+<p>Sua conta foi removida do nosso sistema para que você possa realizar um novo cadastro com os dados corretos.</p>
+<p>Acesse <a href="https://imoveiszonasulrj.com.br/cadastro">nosso site</a> e faça um novo cadastro com uma foto nítida do documento (RG ou CNH).</p>`
+      });
+      console.log('📧 [REJECTION FLOW] E-mail de recusa enviado para:', userEmail);
+    } catch (emailErr) {
+      console.error('❌ [REJECTION FLOW] Erro ao enviar e-mail de recusa:', emailErr);
+    }
+  }
+
+  // 3. DELETE da linha em public.profiles
+  try {
+    const { error: deleteProfileError } = await supabaseAdmin
+      .from('profiles')
+      .delete()
+      .eq('id', profileId);
+
+    if (deleteProfileError) {
+      console.error('❌ [REJECTION FLOW] Erro ao deletar perfil:', JSON.stringify(deleteProfileError));
+    } else {
+      console.log('✅ [REJECTION FLOW] Perfil deletado de public.profiles com sucesso.');
+    }
+  } catch (err) {
+    console.error('❌ [REJECTION FLOW] Exceção ao deletar perfil:', err);
+  }
+
+  // 4. DELETE do usuário em auth.users
+  try {
+    const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(profileId);
+
+    if (deleteAuthError) {
+      console.error('❌ [REJECTION FLOW] Erro ao deletar auth user:', JSON.stringify(deleteAuthError));
+    } else {
+      console.log('✅ [REJECTION FLOW] Usuário deletado de auth.users com sucesso.');
+    }
+  } catch (err) {
+    console.error('❌ [REJECTION FLOW] Exceção ao deletar auth user:', err);
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -87,19 +150,7 @@ export async function POST(request) {
     } catch (downloadErr) {
       console.error('❌ [API VERIFY-DOCUMENT] Erro ao obter imagem do documento:', downloadErr);
 
-      const { data: updateData, error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          status_verificacao: 'rejeitado',
-        })
-        .eq('id', profile_id)
-        .select();
-
-      if (updateError) {
-        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado (erro de download):', JSON.stringify(updateError));
-      } else {
-        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (erro de download) concluído. Linhas afetadas:', updateData);
-      }
+      await handleRejection(profile_id, 'Erro ao obter imagem do documento para análise.');
 
       return NextResponse.json(
         { success: false, status: 'rejeitado', motivo: 'Erro ao obter imagem do documento para análise.' },
@@ -156,19 +207,8 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
     // Se o modelo não gerou conteúdo (imagem recusada, moderação, etc.)
     if (!responseContent) {
       console.error('❌ [API VERIFY-DOCUMENT] OpenAI retornou resposta vazia. finish_reason:', finishReason);
-      const { data: updateData, error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          status_verificacao: 'rejeitado',
-        })
-        .eq('id', profile_id)
-        .select();
 
-      if (updateError) {
-        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado (resposta vazia):', JSON.stringify(updateError));
-      } else {
-        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (resposta vazia) concluído. Linhas afetadas:', updateData);
-      }
+      await handleRejection(profile_id, 'A imagem enviada não pôde ser processada. Envie uma foto nítida do documento (CNH ou RG).');
 
       return NextResponse.json(
         {
@@ -316,37 +356,9 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       });
     } else {
       const motivo = divergencias.join(' ');
-      console.warn(`⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos: ${motivo} | Atualizando perfil (ID: ${profile_id})`);
+      console.warn(`⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos: ${motivo} | Removendo usuário (ID: ${profile_id})`);
 
-      const { data: updateData, error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          status_verificacao: 'rejeitado',
-        })
-        .eq('id', profile_id)
-        .select();
-
-      if (updateError) {
-        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado:', JSON.stringify(updateError));
-      } else {
-        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (recusado) concluído com sucesso. Linhas afetadas:', updateData);
-        
-        try {
-          const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profile_id);
-          const userEmail = userData?.user?.email;
-          if (userEmail && resend) {
-            await resend.emails.send({
-              from: 'Imobiliária ZS <onboarding@resend.dev>',
-              to: userEmail,
-              subject: 'Aviso sobre seu cadastro - Documento Recusado',
-              html: `<p>Olá,</p><p>Notamos uma divergência nos dados enviados e <strong>seu documento não pôde ser aprovado.</strong></p><p><strong>Motivo apontado:</strong> ${motivo}</p><p>Por favor, acesse seu perfil no nosso sistema e envie a imagem do documento (RG ou CNH) de forma nítida novamente.</p>`
-            });
-            console.log('📧 E-mail de recusa enviado para:', userEmail);
-          }
-        } catch (emailErr) {
-          console.error('❌ Erro ao enviar e-mail de recusa via Resend:', emailErr);
-        }
-      }
+      await handleRejection(profile_id, motivo);
 
       return NextResponse.json({
         success: false,
