@@ -88,7 +88,6 @@ export async function POST(request) {
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
-          motivo_recusa: `Erro ao obter imagem do documento: ${downloadErr.message}`,
         })
         .eq('id', profile_id)
         .select();
@@ -158,7 +157,6 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
-          motivo_recusa: 'A imagem enviada não pôde ser processada pelo sistema de verificação. Envie uma foto nítida do documento.',
         })
         .eq('id', profile_id)
         .select();
@@ -277,7 +275,6 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         .from('profiles')
         .update({
           status_verificacao: 'aprovado',
-          motivo_recusa: null,
         })
         .eq('id', profile_id)
         .select();
@@ -306,7 +303,6 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
-          motivo_recusa: motivo,
         })
         .eq('id', profile_id)
         .select();
