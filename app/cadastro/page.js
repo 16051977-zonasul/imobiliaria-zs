@@ -192,8 +192,8 @@ export default function CadastroPage() {
         const motivoRecusa = verifyJson.motivo || 'Os dados contidos no documento não conferem com as informações digitadas.';
         console.warn('⚠️ [CADASTRO BLOQUEADO] Documento rejeitado pela IA. Motivo:', motivoRecusa);
         
-        // Exibe mensagem de erro na própria interface do usuário (NÃO executa supabase.auth.signUp)
-        setErrorMessage(`Cadastro não aprovado: ${motivoRecusa} Verifique as informações e envie uma imagem legível do documento.`);
+        // Exibe mensagem de erro genérica na interface (sem expor dados extraídos)
+        setErrorMessage('Os dados preenchidos divergem dos dados contidos no documento enviado. Por favor, verifique as informações e refaça a inscrição com os dados corretos.');
         setLoading(false);
         return;
       }
