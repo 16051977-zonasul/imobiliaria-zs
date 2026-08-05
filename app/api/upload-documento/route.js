@@ -29,9 +29,19 @@ export async function POST(request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // Garante que o bucket 'documentos' exista (privado)
+    try {
+      await supabaseAdmin.storage.createBucket('documentos', {
+        public: false,
+        fileSizeLimit: 10485760, // 10MB
+      });
+    } catch (bErr) {
+      // Ignora erro se o bucket já existir
+    }
+
     console.log(`[API /upload-documento] Enviando arquivo para o bucket 'documentos', caminho: ${storagePath}`);
 
-    // Upload direto para o bucket privado 'documentos'
+    // Upload direto para o bucket privado 'documentos' usando Service Role Key
     const { data, error } = await supabaseAdmin.storage
       .from('documentos')
       .upload(storagePath, buffer, {
@@ -42,15 +52,27 @@ export async function POST(request) {
     if (error) {
       console.error('[API /upload-documento] Erro no Supabase Storage:', error);
 
-      // Fallback em Base64 caso o bucket não exista no Supabase
-      const base64 = buffer.toString('base64');
-      const fallbackUrl = `data:${file.type || 'image/jpeg'};base64,${base64}`;
+      // Tenta criar o bucket e refazer o upload
+      try {
+        await supabaseAdmin.storage.createBucket('documentos', { public: false });
+        const { data: retryData, error: retryError } = await supabaseAdmin.storage
+          .from('documentos')
+          .upload(storagePath, buffer, {
+            contentType: file.type || 'image/jpeg',
+            upsert: true,
+          });
+        if (retryError) throw retryError;
+      } catch (retryErr) {
+        console.error('[API /upload-documento] Retry de upload falhou:', retryErr);
+        const base64 = buffer.toString('base64');
+        const fallbackUrl = `data:${file.type || 'image/jpeg'};base64,${base64}`;
 
-      return NextResponse.json({
-        success: true,
-        documentoUrl: fallbackUrl,
-        warning: `Upload com fallback seguro devido a erro no Storage: ${error.message}`,
-      });
+        return NextResponse.json({
+          success: true,
+          documentoUrl: fallbackUrl,
+          warning: `Upload com fallback seguro devido a erro no Storage: ${error.message}`,
+        });
+      }
     }
 
     // Gera a URL do documento (privada com signed URL ou referência)

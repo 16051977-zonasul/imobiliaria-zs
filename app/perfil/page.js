@@ -28,7 +28,12 @@ import {
   Sparkles,
   AlertTriangle,
   UserX,
-  X
+  X,
+  UploadCloud,
+  FileCheck,
+  RefreshCw,
+  LogOut,
+  XCircle
 } from 'lucide-react';
 
 export default function PerfilPage() {
@@ -59,8 +64,18 @@ export default function PerfilPage() {
     bio: '',
     foto_url: '',
     status_verificacao: 'pendente',
+    motivo_recusa: '',
+    cpf: '',
+    data_nascimento: '',
+    filiacao: '',
     created_at: new Date().toISOString()
   });
+
+  // Estados de Reenvio de Documento Recusado
+  const [reuploadFile, setReuploadFile] = useState(null);
+  const [reuploadPreview, setReuploadPreview] = useState(null);
+  const [reuploading, setReuploading] = useState(false);
+  const [reuploadError, setReuploadError] = useState('');
 
   // Imóveis do Anunciante
   const [meusImoveis, setMeusImoveis] = useState([]);
@@ -115,6 +130,10 @@ export default function PerfilPage() {
           bio: profileData.bio || '',
           foto_url: profileData.foto_url || '',
           status_verificacao: profileData.status_verificacao || 'pendente',
+          motivo_recusa: profileData.motivo_recusa || '',
+          cpf: profileData.cpf || user.user_metadata?.cpf || '',
+          data_nascimento: profileData.data_nascimento || user.user_metadata?.data_nascimento || '',
+          filiacao: profileData.filiacao || user.user_metadata?.filiacao || '',
           created_at: profileData.created_at || user.created_at || new Date().toISOString()
         });
       } else {
@@ -122,6 +141,7 @@ export default function PerfilPage() {
           ...prev,
           nome_completo: user.user_metadata?.nome_completo || user.email || '',
           telefone: user.user_metadata?.telefone || '',
+          cpf: user.user_metadata?.cpf || '',
           created_at: user.created_at || new Date().toISOString()
         }));
       }
@@ -304,8 +324,74 @@ export default function PerfilPage() {
     } catch (err) {
       console.error('Erro no descadastro:', err);
       alert('Falha na comunicação com o servidor ao excluir conta.');
+  // Reenvio de documento caso o status seja recusado
+  async function handleReenviarDocumento(e) {
+    e.preventDefault();
+    if (!reuploadFile) {
+      setReuploadError('Selecione uma foto da sua CNH ou RG (PNG, JPG ou WEBP).');
+      return;
+    }
+
+    setReuploading(true);
+    setReuploadError('');
+
+    try {
+      const docFormData = new FormData();
+      docFormData.append('file', reuploadFile);
+      docFormData.append('userId', user.id);
+
+      const res = await fetch('/api/upload-documento', {
+        method: 'POST',
+        body: docFormData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.documentoUrl) {
+        throw new Error(data.error || 'Erro ao enviar a foto do documento.');
+      }
+
+      const novoDocumentoUrl = data.documentoUrl;
+
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({
+          documento_url: novoDocumentoUrl,
+          status_verificacao: 'pendente',
+          motivo_recusa: null,
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        throw new Error(`Erro ao atualizar perfil: ${dbError.message}`);
+      }
+
+      fetch('/api/auth/verify-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: user.id,
+          cpf: profile.cpf || user.user_metadata?.cpf,
+          nome_completo: profile.nome_completo,
+          data_nascimento: profile.data_nascimento || user.user_metadata?.data_nascimento,
+          filiacao: profile.filiacao || user.user_metadata?.filiacao,
+          documento_url: novoDocumentoUrl,
+        }),
+      }).catch((err) => console.error('Erro na revalidação por IA:', err));
+
+      setProfile((prev) => ({
+        ...prev,
+        status_verificacao: 'pendente',
+        documento_url: novoDocumentoUrl,
+        motivo_recusa: null,
+      }));
+      setReuploadFile(null);
+      setReuploadPreview(null);
+
+    } catch (err) {
+      console.error('Erro no reenvio do documento:', err);
+      setReuploadError(err.message || 'Falha ao reenviar documento.');
     } finally {
-      setDeletingAccount(false);
+      setReuploading(false);
     }
   }
 
@@ -321,6 +407,181 @@ export default function PerfilPage() {
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
         <p className="text-xs font-semibold text-slate-400">Carregando seu perfil de anunciante...</p>
+      </div>
+    );
+  }
+
+  // 1. TRAVA DE ACESSO: CADASTRO EM ANÁLISE (status = 'pendente')
+  if (profile && profile.status_verificacao === 'pendente') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="bg-slate-900/90 border border-amber-500/30 rounded-3xl p-8 sm:p-12 shadow-2xl backdrop-blur-md space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <Clock className="w-8 h-8 animate-pulse" />
+          </div>
+          
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-white">Cadastro em Análise</h1>
+            <p className="text-amber-300 font-semibold text-xs sm:text-sm">
+              Você receberá um e-mail assim que for aprovado.
+            </p>
+          </div>
+
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-lg mx-auto">
+            Sua conta de anunciante está sob análise de segurança. Seus dados e a foto do documento já foram recebidos e estão em verificação pelo sistema.
+          </p>
+
+          <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl text-xs text-slate-300 max-w-md mx-auto space-y-1 text-left">
+            <p className="font-bold text-white flex items-center gap-1.5 border-b border-slate-800 pb-2 mb-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" /> Detalhes da Verificação
+            </p>
+            <p><span className="text-slate-400">Status atual:</span> <strong className="text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 font-bold tracking-wide text-xs">PENDENTE</strong></p>
+            <p><span className="text-slate-400">Anunciante:</span> <strong className="text-white">{profile.nome_completo}</strong></p>
+            <p><span className="text-slate-400">E-mail:</span> <span className="text-sky-300">{user?.email}</span></p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+            <button
+              onClick={() => carregarPerfilEImoveis()}
+              className="w-full sm:w-auto px-6 py-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Verificar Status Novamente</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.push('/login');
+              }}
+              className="w-full sm:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sair da Conta</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. TRAVA DE ACESSO: CADASTRO RECUSADO (status = 'recusado' ou 'rejeitado')
+  if (profile && (profile.status_verificacao === 'recusado' || profile.status_verificacao === 'rejeitado')) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
+            <XCircle className="w-8 h-8" />
+          </div>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-black text-white">Cadastro Recusado</h1>
+            <p className="text-rose-400 text-xs font-bold uppercase tracking-wider">
+              Divergência ou Falha na Verificação do Documento
+            </p>
+          </div>
+
+          {/* Motivo da Recusa */}
+          <div className="bg-rose-950/40 border border-rose-500/30 rounded-2xl p-5 text-left space-y-2">
+            <p className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              Motivo da Recusa:
+            </p>
+            <p className="text-xs sm:text-sm text-rose-100 leading-relaxed">
+              {profile.motivo_recusa || 'Os dados contidos na imagem do documento enviada não conferem com as informações digitadas no formulário (Nome, CPF, Data de Nascimento ou Filiação).'}
+            </p>
+          </div>
+
+          {/* Formulário de Reenvio do Documento */}
+          <form onSubmit={handleReenviarDocumento} className="bg-slate-950 border border-slate-800 rounded-2xl p-6 text-left space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <UploadCloud className="w-4 h-4 text-sky-400" />
+              Reenviar Foto do Documento (RG ou CNH)
+            </h3>
+            <p className="text-xs text-slate-400">
+              Tire uma nova foto legível e nítida da sua CNH ou RG (PNG, JPG ou WEBP) onde seja possível identificar Nome, CPF, Nascimento e Filiação.
+            </p>
+
+            {reuploadError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{reuploadError}</span>
+              </div>
+            )}
+
+            <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-xl p-5 text-center bg-slate-900/50 transition-colors cursor-pointer">
+              <input
+                type="file"
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    setReuploadError('Formato inválido! Envie uma foto/imagem da sua CNH ou RG (PNG, JPG ou WEBP). PDFs não são aceitos.');
+                    setReuploadFile(null);
+                    setReuploadPreview(null);
+                    e.target.value = '';
+                    return;
+                  }
+                  setReuploadError('');
+                  setReuploadFile(file);
+                  setReuploadPreview(URL.createObjectURL(file));
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                required
+              />
+              <div className="flex flex-col items-center justify-center gap-2">
+                {reuploadFile ? (
+                  <FileCheck className="w-6 h-6 text-emerald-400" />
+                ) : (
+                  <UploadCloud className="w-6 h-6 text-slate-400" />
+                )}
+                <span className="text-xs font-semibold text-slate-300">
+                  {reuploadFile ? reuploadFile.name : 'Clique para escolher uma nova foto (PNG, JPG ou WEBP)'}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  Apenas fotos/imagens (PNG, JPG ou WEBP). Arquivos PDF não são aceitos.
+                </span>
+              </div>
+            </div>
+
+            {reuploadPreview && (
+              <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
+                <img src={reuploadPreview} alt="Preview do novo documento" className="w-full h-full object-contain" />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={reuploading || !reuploadFile}
+              className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50"
+            >
+              {reuploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Enviando e validando com IA...</span>
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Reenviar Documento para Análise</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-2 text-center">
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.push('/login');
+              }}
+              className="text-xs text-slate-400 hover:text-white underline underline-offset-4 cursor-pointer"
+            >
+              Sair da Conta
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

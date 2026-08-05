@@ -81,6 +81,15 @@ export default function CadastroPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      setErrorMessage('Formato inválido! Envie uma foto ou imagem legível da sua CNH ou RG (PNG, JPG ou WEBP). Arquivos PDF não são aceitos para verificação automática.');
+      setDocumentoFile(null);
+      setDocumentoPreview(null);
+      e.target.value = '';
+      return;
+    }
+
+    setErrorMessage('');
     setDocumentoFile(file);
     setDocumentoPreview(URL.createObjectURL(file));
   }
@@ -126,11 +135,14 @@ export default function CadastroPage() {
     try {
       console.log('🚀 [SUBMIT CADASTRO] Todas as validações passaram. Chamando supabase.auth.signUp para:', formData.email);
 
-      // 1. Cadastra o usuário no Supabase Auth
+      // 1. Cadastra o usuário no Supabase Auth com emailRedirectTo apontando para /perfil
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/perfil` : 'https://imoveiszonasulrj.com.br/perfil';
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.senha,
         options: {
+          emailRedirectTo: redirectUrl,
           data: {
             nome_completo: formData.nome_completo,
             telefone: formData.telefone,
@@ -164,71 +176,45 @@ export default function CadastroPage() {
 
       console.log('✅ [SUPABASE AUTH SUCCESS] Usuário criado com sucesso. UUID:', user.id);
 
-      // 2. Garante autenticação da sessão para passar pelas políticas RLS no Supabase
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
-        console.log('🔄 [AUTH SESSION] Efetuando login para obter Token de Acesso RLS...');
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.senha,
-        });
-
-        if (signInError) {
-          console.warn('⚠️ [AUTH SIGN-IN NOTE]:', signInError.message);
-        } else if (signInData?.user) {
-          user = signInData.user;
-        }
-      }
-
-      // 3. Upload da foto do documento para o bucket 'documentos' no Supabase Storage
+      // 2. Upload seguro da foto do documento via Rota API do Servidor (bypassa RLS no bucket privado 'documentos')
       let documentoUrl = '';
-      const cleanFileName = documentoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storagePath = `${user.id}/${Date.now()}_${cleanFileName}`;
+      console.log(`📤 [STORAGE UPLOAD] Enviando foto do documento via API segura para bucket 'documentos'...`);
 
-      console.log(`📤 [STORAGE UPLOAD] Enviando documento para bucket 'documentos', caminho: ${storagePath}`);
+      const docFormData = new FormData();
+      docFormData.append('file', documentoFile);
+      docFormData.append('userId', user.id);
 
-      const { data: storageData, error: storageError } = await supabase.storage
-        .from('documentos')
-        .upload(storagePath, documentoFile, {
-          contentType: documentoFile.type || 'image/jpeg',
-          upsert: true,
-        });
+      const uploadRes = await fetch('/api/upload-documento', {
+        method: 'POST',
+        body: docFormData,
+      });
 
-      if (storageError) {
-        console.warn('⚠️ [STORAGE CLIENT RLS NOTICE] Falha no upload via cliente, acionando rota API segura:', storageError.message);
+      const uploadJson = await uploadRes.json();
+      if (uploadRes.ok && uploadJson.documentoUrl) {
+        documentoUrl = uploadJson.documentoUrl;
+        console.log('✅ [STORAGE API SUCCESS] Documento salvo no bucket com sucesso:', documentoUrl);
+      } else {
+        console.warn('⚠️ [STORAGE API FALLBACK] Tentando upload direto via cliente Supabase...');
+        const cleanFileName = documentoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `${user.id}/${Date.now()}_${cleanFileName}`;
 
-        const docFormData = new FormData();
-        docFormData.append('file', documentoFile);
-        docFormData.append('userId', user.id);
+        const { data: storageData, error: storageError } = await supabase.storage
+          .from('documentos')
+          .upload(storagePath, documentoFile, {
+            contentType: documentoFile.type || 'image/jpeg',
+            upsert: true,
+          });
 
-        const uploadRes = await fetch('/api/upload-documento', {
-          method: 'POST',
-          body: docFormData,
-        });
-
-        const uploadJson = await uploadRes.json();
-        if (uploadRes.ok && uploadJson.documentoUrl) {
-          documentoUrl = uploadJson.documentoUrl;
-          console.log('✅ [STORAGE API SUCCESS] Documento salvo via API:', documentoUrl);
-        } else {
-          console.error('❌ [STORAGE API ERROR]:', uploadJson.error);
+        if (storageError) {
+          console.error('❌ [STORAGE CLIENT ERROR]:', storageError);
           throw new Error(`upload_documento: ${uploadJson.error || storageError.message}`);
         }
-      } else {
-        console.log('✅ [STORAGE CLIENT SUCCESS] Upload concluído:', storageData);
 
         const { data: signedData } = await supabase.storage
           .from('documentos')
           .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
 
-        if (signedData?.signedUrl) {
-          documentoUrl = signedData.signedUrl;
-        } else {
-          const { data: publicData } = supabase.storage
-            .from('documentos')
-            .getPublicUrl(storagePath);
-          documentoUrl = publicData?.publicUrl || storagePath;
-        }
+        documentoUrl = signedData?.signedUrl || storagePath;
       }
 
       console.log('📎 [DOCUMENTO URL GENERATED]:', documentoUrl);
@@ -522,7 +508,7 @@ export default function CadastroPage() {
               <div className="relative border-2 border-dashed border-slate-800 hover:border-sky-500/50 rounded-2xl p-6 text-center bg-slate-950/50 transition-colors group cursor-pointer">
                 <input
                   type="file"
-                  accept="image/*,.pdf"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   required
@@ -536,16 +522,16 @@ export default function CadastroPage() {
                   
                   {documentoFile ? (
                     <span className="text-xs font-bold text-emerald-400">
-                      Documento selecionado: {documentoFile.name}
+                      Foto selecionada: {documentoFile.name}
                     </span>
                   ) : (
                     <span className="text-xs font-semibold text-slate-300">
-                      Clique para selecionar a foto da sua CNH ou RG
+                      Clique para selecionar a foto da sua CNH ou RG (PNG, JPG ou WEBP)
                     </span>
                   )}
 
                   <span className="text-[11px] text-slate-500">
-                    Sua foto é enviada ao bucket privado 'documentos' para verificação de segurança
+                    Apenas fotos/imagens de documentos (PNG, JPG ou WEBP). PDFs não são aceitos.
                   </span>
                 </div>
               </div>

@@ -43,36 +43,44 @@ export async function POST(request) {
     let mimeType = 'image/jpeg';
 
     try {
-      let fetchUrl = documento_url;
+      if (documento_url.startsWith('data:')) {
+        // Trata Data URL base64 diretamente
+        const parts = documento_url.split(',');
+        const mimeMatch = parts[0].match(/data:(.*?);/);
+        if (mimeMatch) mimeType = mimeMatch[1];
+        base64Image = parts[1] || '';
+      } else {
+        let fetchUrl = documento_url;
 
-      // Se a URL não for completa ou for caminho de bucket
-      if (!documento_url.startsWith('http')) {
-        const { data: signedData } = await supabaseAdmin.storage
-          .from('documentos')
-          .createSignedUrl(documento_url, 300);
-        if (signedData?.signedUrl) {
-          fetchUrl = signedData.signedUrl;
-        } else {
-          const { data: publicData } = supabaseAdmin.storage
+        // Se a URL não for HTTP/HTTPS (ex: caminho de bucket como "userId/filename")
+        if (!documento_url.startsWith('http://') && !documento_url.startsWith('https://')) {
+          const { data: signedData } = await supabaseAdmin.storage
             .from('documentos')
-            .getPublicUrl(documento_url);
-          fetchUrl = publicData?.publicUrl || documento_url;
+            .createSignedUrl(documento_url, 300);
+          if (signedData?.signedUrl) {
+            fetchUrl = signedData.signedUrl;
+          } else {
+            const { data: publicData } = supabaseAdmin.storage
+              .from('documentos')
+              .getPublicUrl(documento_url);
+            fetchUrl = publicData?.publicUrl || documento_url;
+          }
         }
+
+        console.log('📥 [API VERIFY-DOCUMENT] Baixando imagem do documento para análise Vision:', fetchUrl);
+        const imgRes = await fetch(fetchUrl);
+        if (!imgRes.ok) {
+          throw new Error(`Falha ao baixar imagem do documento. Status HTTP ${imgRes.status}`);
+        }
+
+        const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+        if (contentType.includes('png')) mimeType = 'image/png';
+        else if (contentType.includes('webp')) mimeType = 'image/webp';
+
+        const arrayBuffer = await imgRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        base64Image = buffer.toString('base64');
       }
-
-      console.log('📥 [API VERIFY-DOCUMENT] Baixando imagem do documento para análise Vision:', fetchUrl);
-      const imgRes = await fetch(fetchUrl);
-      if (!imgRes.ok) {
-        throw new Error(`Falha ao baixar imagem do documento. Status HTTP ${imgRes.status}`);
-      }
-
-      const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-      if (contentType.includes('png')) mimeType = 'image/png';
-      else if (contentType.includes('webp')) mimeType = 'image/webp';
-
-      const arrayBuffer = await imgRes.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      base64Image = buffer.toString('base64');
     } catch (downloadErr) {
       console.error('❌ [API VERIFY-DOCUMENT] Erro ao obter imagem do documento:', downloadErr);
 
