@@ -147,9 +147,60 @@ export default function CadastroPage() {
     setLoading(true);
 
     try {
-      console.log('🚀 [SUBMIT CADASTRO] Todas as validações passaram. Chamando supabase.auth.signUp para:', formData.email);
+      // 1. Upload da foto do documento para o bucket ANTES de criar qualquer conta
+      let documentoUrl = '';
+      console.log(`📤 [STORAGE UPLOAD] Enviando foto do documento para o bucket antes de criar conta...`);
 
-      // 1. Cadastra o usuário no Supabase Auth com emailRedirectTo apontando para /perfil
+      const docFormData = new FormData();
+      docFormData.append('file', documentoFile);
+      docFormData.append('userId', 'temp_' + Date.now());
+
+      const uploadRes = await fetch('/api/upload-documento', {
+        method: 'POST',
+        body: docFormData,
+      });
+
+      const uploadJson = await uploadRes.json();
+      if (uploadRes.ok && uploadJson.documentoUrl) {
+        documentoUrl = uploadJson.documentoUrl;
+        console.log('✅ [STORAGE API SUCCESS] Documento salvo para análise:', documentoUrl);
+      } else {
+        throw new Error(`upload_documento: ${uploadJson.error || 'Erro ao enviar a foto do documento.'}`);
+      }
+
+      // 2. Validação do documento com a OpenAI Vision (gpt-4o) ANTES da criação de conta
+      console.log('🤖 [VERIFY DOCUMENT] Disparando validação via OpenAI Vision antes de criar a conta...');
+      
+      const verifyRes = await fetch('/api/auth/verify-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          cpf: formData.cpf,
+          nome_completo: formData.nome_completo,
+          data_nascimento: formData.data_nascimento,
+          filiacao: formData.filiacao,
+          documento_url: documentoUrl,
+        }),
+      });
+
+      const verifyJson = await verifyRes.json();
+      console.log('🤖 [VERIFY DOCUMENT RESULT] Resultado da análise IA:', verifyJson);
+
+      // 3. Se a validação RETORNAR REJEITADA:
+      if (!verifyRes.ok || verifyJson.status === 'rejeitado' || verifyJson.success === false) {
+        const motivoRecusa = verifyJson.motivo || 'Os dados contidos no documento não conferem com as informações digitadas.';
+        console.warn('⚠️ [CADASTRO BLOQUEADO] Documento rejeitado pela IA. Motivo:', motivoRecusa);
+        
+        // Exibe mensagem de erro na própria interface do usuário (NÃO executa supabase.auth.signUp)
+        setErrorMessage(`Cadastro não aprovado: ${motivoRecusa} Verifique as informações e envie uma imagem legível do documento.`);
+        setLoading(false);
+        return;
+      }
+
+      // 4. Se a validação RETORNAR APROVADA: Executa o supabase.auth.signUp() normalmente
+      console.log('🚀 [SUBMIT CADASTRO] Documento APROVADO! Criando conta no Supabase Auth para:', formData.email);
+
       const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/perfil` : 'https://imoveiszonasulrj.com.br/perfil';
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -167,13 +218,6 @@ export default function CadastroPage() {
         }
       });
 
-      // ─── DIAGNÓSTICO: resultado bruto do Supabase Auth ───────────────────
-      console.log('--- ERRO DO SUPABASE ---', authError);
-      console.log('--- DADOS DO SUPABASE ---', authData);
-      console.log('[DIAGNÓSTICO] user retornado:', authData?.user ?? 'NENHUM');
-      console.log('[DIAGNÓSTICO] session retornada:', authData?.session ?? 'NENHUMA (email não confirmado ainda)');
-      // ─────────────────────────────────────────────────────────────────────
-
       if (authError) {
         console.error('❌ [SUPABASE AUTH ERROR]:', authError.status, authError.code, authError.message);
         if (authError.message.includes('User already registered') || authError.message.includes('already registered')) {
@@ -190,55 +234,8 @@ export default function CadastroPage() {
 
       console.log('✅ [SUPABASE AUTH SUCCESS] Usuário criado com sucesso. UUID:', user.id);
 
-      // 2. Upload seguro da foto do documento via Rota API do Servidor (bypassa RLS no bucket privado 'documentos')
-      let documentoUrl = '';
-      console.log(`📤 [STORAGE UPLOAD] Enviando foto do documento via API segura para bucket 'documentos'...`);
-
-      const docFormData = new FormData();
-      docFormData.append('file', documentoFile);
-      docFormData.append('userId', user.id);
-
-      const uploadRes = await fetch('/api/upload-documento', {
-        method: 'POST',
-        body: docFormData,
-      });
-
-      const uploadJson = await uploadRes.json();
-      if (uploadRes.ok && uploadJson.documentoUrl) {
-        documentoUrl = uploadJson.documentoUrl;
-        console.log('✅ [STORAGE API SUCCESS] Documento salvo no bucket com sucesso:', documentoUrl);
-      } else {
-        console.warn('⚠️ [STORAGE API FALLBACK] Tentando upload direto via cliente Supabase...');
-        const cleanFileName = documentoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const storagePath = `${user.id}/${Date.now()}_${cleanFileName}`;
-
-        const { data: storageData, error: storageError } = await supabase.storage
-          .from('documentos')
-          .upload(storagePath, documentoFile, {
-            contentType: documentoFile.type || 'image/jpeg',
-            upsert: true,
-          });
-
-        if (storageError) {
-          console.error('❌ [STORAGE CLIENT ERROR]:', storageError);
-          throw new Error(`upload_documento: ${uploadJson.error || storageError.message}`);
-        }
-
-        const { data: signedData } = await supabase.storage
-          .from('documentos')
-          .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-
-        documentoUrl = signedData?.signedUrl || storagePath;
-      }
-
-      console.log('📎 [DOCUMENTO URL GENERATED]:', documentoUrl);
-
-      // 4. Inserção na tabela public.profiles com status_verificacao explicitamente como 'pendente'
-      console.log('💾 [DB PROFILE INSERT] Gravando registro em public.profiles para id:', user.id);
-
-      // Converte a data do formato brasileiro DD/MM/AAAA → ISO YYYY-MM-DD para o PostgreSQL
+      // 5. Inserção na tabela public.profiles com status_verificacao = 'aprovado'
       const dataNascimentoISO = toISODate(formData.data_nascimento);
-      console.log('📅 [DATA NASCIMENTO ISO]:', dataNascimentoISO);
 
       const profilePayload = {
         id: user.id,
@@ -248,86 +245,36 @@ export default function CadastroPage() {
         data_nascimento: dataNascimentoISO,
         filiacao: formData.filiacao,
         documento_url: documentoUrl,
-        status_verificacao: 'pendente',
+        status_verificacao: 'aprovado',
       };
 
-      // Verifica se o perfil já existe para esse ID
-      const { data: existingProfile, error: searchError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+        .insert([profilePayload])
+        .select();
 
-      if (existingProfile) {
-        console.log('🔄 [DB PROFILE] Perfil já existente. Status atual:', existingProfile.status_verificacao);
-        if (existingProfile.status_verificacao === 'rejeitado') {
-          console.log('🔄 [DB PROFILE] Atualizando perfil rejeitado para pendente...');
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update(profilePayload)
-            .eq('id', user.id);
-            
-          if (updateError) {
-            console.error('❌ [DATABASE UPDATE ERROR]:', updateError);
-            throw new Error('Erro ao atualizar seu cadastro. Tente novamente.');
-          }
-        } else {
-          throw new Error(`Este usuário já possui um cadastro (Status: ${existingProfile.status_verificacao}). Faça login.`);
+      if (profileError) {
+        console.error('❌ [DATABASE PROFILE ERROR]:', profileError);
+        if (profileError.code === '23503') {
+          throw new Error('Este e-mail já está cadastrado no sistema. Por favor, vá para a tela de Login e acesse seu perfil.');
         }
-      } else {
-        // Se não existe, faz a inserção
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .insert([profilePayload])
-          .select();
-
-        if (profileError) {
-          console.error('❌ [DATABASE PROFILE ERROR]:', profileError);
-          // 23503 indica foreign key violation: provável ID falso retornado pelo Auth (proteção de e-mail ativada)
-          if (profileError.code === '23503') {
-            throw new Error('Este e-mail já está cadastrado no sistema. Por favor, vá para a tela de Login e acesse seu perfil.');
-          }
-          throw new Error(`Erro ao salvar perfil no nosso sistema. Tente novamente. (${profileError.code || 'DB'})`);
-        }
-        console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
+        throw new Error(`Erro ao salvar perfil no nosso sistema. Tente novamente. (${profileError.code || 'DB'})`);
       }
+      console.log('🎉 [PROFILES INSERT SUCCESS] Registro de perfil gravado com sucesso:', profileData);
 
-      // 5. Dispara a verificação automática do documento com a OpenAI Vision (gpt-4o) em segundo plano
-      console.log('🤖 [VERIFY DOCUMENT] Disparando validação via OpenAI Vision para profile:', user.id);
-      fetch('/api/auth/verify-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile_id: user.id,
-          cpf: formData.cpf,
-          nome_completo: formData.nome_completo,
-          data_nascimento: formData.data_nascimento,
-          filiacao: formData.filiacao,
-          documento_url: documentoUrl,
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          console.log('🤖 [VERIFY DOCUMENT RESULT] Resultado da análise IA:', data);
-        })
-        .catch((err) => {
-          console.error('❌ [VERIFY DOCUMENT FETCH ERROR]:', err);
-        });
-
-      // 6. Exibe a mensagem de sucesso — o formulário some e só a mensagem aparece
+      // 6. Exibe a mensagem de sucesso — o formulário soma e só a mensagem de confirmação de e-mail aparece
       setSuccess(true);
 
     } catch (err) {
       console.error('❌ [ERRO CRÍTICO NO NOVO CADASTRO]:', err);
-      // Erro de upload de documento — mensagem específica
       if (
         err.message.includes('upload_documento') ||
         err.message.toLowerCase().includes('storage') ||
-        err.message.toLowerCase().includes('upload')
+        err.message.toLowerCase().includes('bucket')
       ) {
-        setErrorMessage('Erro ao enviar o documento para o nosso sistema. Verifique o arquivo e tente novamente.');
+        setErrorMessage('Erro ao enviar a foto do documento. Verifique se o arquivo é uma imagem válida (JPG, PNG ou WEBP) e tente novamente.');
       } else {
-        setErrorMessage(err.message || 'Ocorreu um erro inesperado no nosso sistema. Tente novamente.');
+        setErrorMessage(err.message || 'Ocorreu um erro ao processar seu cadastro. Tente novamente.');
       }
     } finally {
       setLoading(false);

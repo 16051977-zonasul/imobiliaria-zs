@@ -21,45 +21,49 @@ const openai = new OpenAI({
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // ─── Helper: fluxo completo de rejeição (e-mail + DELETE profile + DELETE auth user) ───
-async function handleRejection(profileId, motivo) {
-  console.log(`🗑️ [REJECTION FLOW] Iniciando fluxo de rejeição para ID: ${profileId} | Motivo: ${motivo}`);
+async function handleRejection(profileId, motivo, userEmailInput = null) {
+  console.log(`🗑️ [REJECTION FLOW] Iniciando fluxo de rejeição para ID: ${profileId || 'Sem Perfil (pré-cadastro)'} | Motivo: ${motivo}`);
 
-  // 1. Buscar e-mail do usuário antes de deletar a conta
-  let userEmail = null;
-  try {
-    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profileId);
-    userEmail = userData?.user?.email;
-    console.log('📧 [REJECTION FLOW] E-mail do usuário:', userEmail || 'NÃO ENCONTRADO');
-  } catch (err) {
-    console.error('❌ [REJECTION FLOW] Erro ao buscar e-mail do usuário:', err);
+  // 1. Buscar e-mail do usuário antes de deletar a conta (se não fornecido diretamente)
+  let userEmail = userEmailInput;
+  if (!userEmail && profileId) {
+    try {
+      const { data: userData } = await supabaseAdmin.auth.admin.getUserById(profileId);
+      userEmail = userData?.user?.email;
+      console.log('📧 [REJECTION FLOW] E-mail do usuário:', userEmail || 'NÃO ENCONTRADO');
+    } catch (err) {
+      console.error('❌ [REJECTION FLOW] Erro ao buscar e-mail do usuário:', err);
+    }
   }
 
-  // 2. Apagar imediatamente a conta do usuário no Supabase (public.profiles e auth.users)
-  try {
-    const { error: deleteProfileError } = await supabaseAdmin
-      .from('profiles')
-      .delete()
-      .eq('id', profileId);
+  // 2. Apagar imediatamente a conta do usuário no Supabase se existir (public.profiles e auth.users)
+  if (profileId) {
+    try {
+      const { error: deleteProfileError } = await supabaseAdmin
+        .from('profiles')
+        .delete()
+        .eq('id', profileId);
 
-    if (deleteProfileError) {
-      console.error('❌ [REJECTION FLOW] Erro ao deletar perfil:', JSON.stringify(deleteProfileError));
-    } else {
-      console.log('✅ [REJECTION FLOW] Perfil deletado de public.profiles com sucesso.');
+      if (deleteProfileError) {
+        console.error('❌ [REJECTION FLOW] Erro ao deletar perfil:', JSON.stringify(deleteProfileError));
+      } else {
+        console.log('✅ [REJECTION FLOW] Perfil deletado de public.profiles com sucesso.');
+      }
+    } catch (err) {
+      console.error('❌ [REJECTION FLOW] Exceção ao deletar perfil:', err);
     }
-  } catch (err) {
-    console.error('❌ [REJECTION FLOW] Exceção ao deletar perfil:', err);
-  }
 
-  try {
-    const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(profileId);
+    try {
+      const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(profileId);
 
-    if (deleteAuthError) {
-      console.error('❌ [REJECTION FLOW] Erro ao deletar auth user:', JSON.stringify(deleteAuthError));
-    } else {
-      console.log('✅ [REJECTION FLOW] Usuário deletado de auth.users com sucesso.');
+      if (deleteAuthError) {
+        console.error('❌ [REJECTION FLOW] Erro ao deletar auth user:', JSON.stringify(deleteAuthError));
+      } else {
+        console.log('✅ [REJECTION FLOW] Usuário deletado de auth.users com sucesso.');
+      }
+    } catch (err) {
+      console.error('❌ [REJECTION FLOW] Exceção ao deletar auth user:', err);
     }
-  } catch (err) {
-    console.error('❌ [REJECTION FLOW] Exceção ao deletar auth user:', err);
   }
 
   // 3. Disparar e-mail transacional direto via Resend
@@ -88,10 +92,11 @@ async function handleRejection(profileId, motivo) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { profile_id, cpf, nome_completo, data_nascimento, filiacao, documento_url } = body;
+    const { profile_id, email, cpf, nome_completo, data_nascimento, filiacao, documento_url } = body;
 
     console.log('🔍 [API VERIFY-DOCUMENT] Recebido pedido de validação:', {
       profile_id,
+      email,
       cpf,
       nome_completo,
       data_nascimento,
@@ -99,9 +104,9 @@ export async function POST(request) {
       documento_url,
     });
 
-    if (!profile_id || !documento_url) {
+    if (!documento_url) {
       return NextResponse.json(
-        { error: 'Parâmetros profile_id e documento_url são obrigatórios.' },
+        { error: 'Parâmetro documento_url é obrigatório.' },
         { status: 400 }
       );
     }
@@ -152,7 +157,11 @@ export async function POST(request) {
     } catch (downloadErr) {
       console.error('❌ [API VERIFY-DOCUMENT] Erro ao obter imagem do documento:', downloadErr);
 
-      await handleRejection(profile_id, 'Erro ao obter imagem do documento para análise.');
+      if (profile_id) {
+        await handleRejection(profile_id, 'Erro ao obter imagem do documento para análise.', email);
+      } else if (email) {
+        await handleRejection(null, 'Erro ao obter imagem do documento para análise.', email);
+      }
 
       return NextResponse.json(
         { success: false, status: 'rejeitado', motivo: 'Erro ao obter imagem do documento para análise.' },
@@ -372,9 +381,9 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       });
     } else {
       const motivo = divergencias.join(' ');
-      console.warn(`⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos: ${motivo} | Removendo usuário (ID: ${profile_id})`);
+      console.warn(`⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos: ${motivo}`);
 
-      await handleRejection(profile_id, motivo);
+      await handleRejection(profile_id, motivo, email);
 
       return NextResponse.json({
         success: false,
