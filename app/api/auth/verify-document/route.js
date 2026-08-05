@@ -84,13 +84,20 @@ export async function POST(request) {
     } catch (downloadErr) {
       console.error('❌ [API VERIFY-DOCUMENT] Erro ao obter imagem do documento:', downloadErr);
 
-      await supabaseAdmin
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
           motivo_recusa: `Erro ao obter imagem do documento: ${downloadErr.message}`,
         })
-        .eq('id', profile_id);
+        .eq('id', profile_id)
+        .select();
+
+      if (updateError) {
+        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado (erro de download):', JSON.stringify(updateError));
+      } else {
+        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (erro de download) concluído. Linhas afetadas:', updateData);
+      }
 
       return NextResponse.json(
         { success: false, status: 'recusado', motivo: 'Erro ao obter imagem do documento para análise.' },
@@ -147,13 +154,20 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
     // Se o modelo não gerou conteúdo (imagem recusada, moderação, etc.)
     if (!responseContent) {
       console.error('❌ [API VERIFY-DOCUMENT] OpenAI retornou resposta vazia. finish_reason:', finishReason);
-      await supabaseAdmin
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
           motivo_recusa: 'A imagem enviada não pôde ser processada pelo sistema de verificação. Envie uma foto nítida do documento.',
         })
-        .eq('id', profile_id);
+        .eq('id', profile_id)
+        .select();
+
+      if (updateError) {
+        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado (resposta vazia):', JSON.stringify(updateError));
+      } else {
+        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (resposta vazia) concluído. Linhas afetadas:', updateData);
+      }
 
       return NextResponse.json(
         {
@@ -258,17 +272,20 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
 
     // 4. Atualizar no Supabase via Service Role Client
     if (aprovado) {
-      console.log('🎉 [API VERIFY-DOCUMENT] Documento APROVADO! Atualizando perfil no Supabase...');
-      const { error: updateError } = await supabaseAdmin
+      console.log(`🎉 [API VERIFY-DOCUMENT] Documento APROVADO! Atualizando perfil (ID: ${profile_id}) no Supabase...`);
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
           status_verificacao: 'aprovado',
           motivo_recusa: null,
         })
-        .eq('id', profile_id);
+        .eq('id', profile_id)
+        .select();
 
       if (updateError) {
-        console.error('❌ [API VERIFY-DOCUMENT] Erro ao atualizar status para aprovado:', updateError);
+        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para aprovado:', JSON.stringify(updateError));
+      } else {
+        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (aprovado) concluído com sucesso. Linhas afetadas:', updateData);
       }
 
       return NextResponse.json({
@@ -283,18 +300,21 @@ Se algum dado estiver ausente ou ilegível no documento, preencha o valor como n
       });
     } else {
       const motivo = divergencias.join(' ');
-      console.warn('⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos:', motivo);
+      console.warn(`⚠️ [API VERIFY-DOCUMENT] Documento RECUSADO. Motivos: ${motivo} | Atualizando perfil (ID: ${profile_id})`);
 
-      const { error: updateError } = await supabaseAdmin
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({
           status_verificacao: 'recusado',
           motivo_recusa: motivo,
         })
-        .eq('id', profile_id);
+        .eq('id', profile_id)
+        .select();
 
       if (updateError) {
-        console.error('❌ [API VERIFY-DOCUMENT] Erro ao atualizar status para recusado:', updateError);
+        console.error('❌ [API VERIFY-DOCUMENT] ERRO FATAL ao atualizar status para recusado:', JSON.stringify(updateError));
+      } else {
+        console.log('✅ [API VERIFY-DOCUMENT] UPDATE (recusado) concluído com sucesso. Linhas afetadas:', updateData);
       }
 
       return NextResponse.json({
