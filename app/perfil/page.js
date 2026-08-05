@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -36,8 +36,10 @@ import {
   XCircle
 } from 'lucide-react';
 
-export default function PerfilPage() {
+function PerfilPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const statusParam = searchParams.get('status');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,13 +139,8 @@ export default function PerfilPage() {
           created_at: profileData.created_at || user.created_at || new Date().toISOString()
         });
       } else {
-        setProfile((prev) => ({
-          ...prev,
-          nome_completo: user.user_metadata?.nome_completo || user.email || '',
-          telefone: user.user_metadata?.telefone || '',
-          cpf: user.user_metadata?.cpf || '',
-          created_at: user.created_at || new Date().toISOString()
-        }));
+        // Perfil não encontrado no banco (foi deletado após rejeição ou ainda não criado)
+        setProfile(null);
       }
 
       // 2. Carrega imóveis cadastrados no banco de dados Supabase
@@ -412,6 +409,48 @@ export default function PerfilPage() {
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-sky-400 animate-spin" />
         <p className="text-xs font-semibold text-slate-400">Carregando seu perfil de anunciante...</p>
+      </div>
+    );
+  }
+
+  // 0. TRAVA: status=recusado na URL (usuário voltou via link de e-mail após conta deletada)
+  if (statusParam === 'recusado') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
+            <XCircle className="w-8 h-8" />
+          </div>
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-black text-white">Cadastro Recusado</h1>
+            <p className="text-rose-400 text-xs font-bold uppercase tracking-wider">
+              Divergência ou Falha na Verificação do Documento
+            </p>
+          </div>
+          <div className="bg-rose-950/40 border border-rose-500/30 rounded-2xl p-5 text-left space-y-2">
+            <p className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              Motivo da Recusa:
+            </p>
+            <p className="text-xs sm:text-sm text-rose-100 leading-relaxed">
+              Os dados contidos na imagem do documento enviada não conferem com as informações digitadas no formulário (Nome, CPF, Data de Nascimento ou Filiação).
+            </p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 text-left space-y-4">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Como os dados não conferem, o cadastro anterior foi cancelado. Por favor, faça um novo cadastro com as informações e documentos corretos.
+            </p>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.push('/cadastro');
+              }}
+              className="w-full bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 text-xs cursor-pointer"
+            >
+              Refazer Cadastro
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1101,3 +1140,12 @@ export default function PerfilPage() {
     </div>
   );
 }
+
+export default function PerfilPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[70vh] flex items-center justify-center"><span className="text-slate-400 text-xs">Carregando...</span></div>}>
+      <PerfilPageInner />
+    </Suspense>
+  );
+}
+
