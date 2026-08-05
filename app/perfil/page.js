@@ -413,47 +413,12 @@ function PerfilPageInner() {
     );
   }
 
-  // 0. TRAVA: status=recusado na URL (usuário voltou via link de e-mail após conta deletada)
-  if (statusParam === 'recusado') {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-400">
-            <XCircle className="w-8 h-8" />
-          </div>
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-black text-white">Cadastro Recusado</h1>
-            <p className="text-rose-400 text-xs font-bold uppercase tracking-wider">
-              Divergência ou Falha na Verificação do Documento
-            </p>
-          </div>
-          <div className="bg-rose-950/40 border border-rose-500/30 rounded-2xl p-5 text-left space-y-2">
-            <p className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              Motivo da Recusa:
-            </p>
-            <p className="text-xs sm:text-sm text-rose-100 leading-relaxed">
-              Os dados contidos na imagem do documento enviada não conferem com as informações digitadas no formulário (Nome, CPF, Data de Nascimento ou Filiação).
-            </p>
-          </div>
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 text-left space-y-4">
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Como os dados não conferem, o cadastro anterior foi cancelado. Por favor, faça um novo cadastro com as informações e documentos corretos.
-            </p>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.push('/cadastro');
-              }}
-              className="w-full bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 text-xs cursor-pointer"
-            >
-              Refazer Cadastro
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Redirect se status=recusado na URL
+  useEffect(() => {
+    if (statusParam === 'recusado') {
+      router.replace('/cadastro-recusado');
+    }
+  }, [statusParam, router]);
 
   // 1. TRAVA DE ACESSO: CADASTRO EM ANÁLISE (status = 'pendente')
   if (profile && profile.status_verificacao === 'pendente') {
