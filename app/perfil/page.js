@@ -104,6 +104,13 @@ function PerfilPageInner() {
     carregarPerfilEImoveis();
   }, []);
 
+  // Redirect se status=recusado na URL — DEVE ficar antes de qualquer return condicional
+  useEffect(() => {
+    if (statusParam === 'recusado') {
+      router.replace('/recusado');
+    }
+  }, [statusParam, router]);
+
   async function carregarPerfilEImoveis() {
     setLoading(true);
     try {
@@ -164,7 +171,7 @@ function PerfilPageInner() {
 
   function handleProfileChange(e) {
     const { name, value } = e.target;
-    setProfile((prev) => ({ ...prev, [name]: value }));
+    setProfile((prev) => prev ? { ...prev, [name]: value } : prev);
   }
 
   async function handleAvatarUpload(e) {
@@ -196,6 +203,7 @@ function PerfilPageInner() {
 
   async function handleSalvarPerfil(e) {
     e.preventDefault();
+    if (!profile) return;
     setSaving(true);
     setFeedback(null);
 
@@ -412,13 +420,6 @@ function PerfilPageInner() {
       </div>
     );
   }
-
-  // Redirect se status=recusado na URL
-  useEffect(() => {
-    if (statusParam === 'recusado') {
-      router.replace('/recusado');
-    }
-  }, [statusParam, router]);
 
   // 1. TRAVA DE ACESSO: CADASTRO EM ANÁLISE (status = 'pendente')
   if (profile && profile.status_verificacao === 'pendente') {
