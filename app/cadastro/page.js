@@ -56,12 +56,26 @@ export default function CadastroPage() {
     return `${nums.slice(0, 3)}.${nums.slice(3, 6)}.${nums.slice(6, 9)}-${nums.slice(9)}`;
   }
 
-  // Formata Data de Nascimento: DD/MM/AAAA
+  // Formata Data de Nascimento para exibição: DD/MM/AAAA
   function formatDataNascimento(val) {
     const nums = val.replace(/\D/g, '').slice(0, 8);
     if (nums.length <= 2) return nums;
     if (nums.length <= 4) return `${nums.slice(0, 2)}/${nums.slice(2)}`;
     return `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4)}`;
+  }
+
+  // Converte data de exibição (DD/MM/AAAA) ou ISO (YYYY-MM-DD) → sempre YYYY-MM-DD
+  function toISODate(val) {
+    if (!val) return null;
+    const s = String(val).trim();
+    // Já está no formato ISO YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Formato brasileiro DD/MM/AAAA
+    const parts = s.split('/');
+    if (parts.length === 3 && parts[2].length === 4) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return null;
   }
 
   function handleChange(e) {
@@ -222,12 +236,16 @@ export default function CadastroPage() {
       // 4. Inserção na tabela public.profiles com status_verificacao explicitamente como 'pendente'
       console.log('💾 [DB PROFILE INSERT] Gravando registro em public.profiles para id:', user.id);
 
+      // Converte a data do formato brasileiro DD/MM/AAAA → ISO YYYY-MM-DD para o PostgreSQL
+      const dataNascimentoISO = toISODate(formData.data_nascimento);
+      console.log('📅 [DATA NASCIMENTO ISO]:', dataNascimentoISO);
+
       const profilePayload = {
         id: user.id,
         nome_completo: formData.nome_completo,
         telefone: formData.telefone,
         cpf: formData.cpf,
-        data_nascimento: formData.data_nascimento,
+        data_nascimento: dataNascimentoISO,
         filiacao: formData.filiacao,
         documento_url: documentoUrl,
         status_verificacao: 'pendente',
