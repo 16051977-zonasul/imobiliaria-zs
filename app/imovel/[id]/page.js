@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { formatR2Url, formatR2Urls } from '@/lib/imageUtils';
 import { 
   MapPin, 
   Bed, 
@@ -298,9 +299,11 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
     );
   }
 
-  const fotos = imovel.fotos && imovel.fotos.length > 0 
+  const rawFotos = imovel.fotos && imovel.fotos.length > 0 
     ? imovel.fotos 
     : ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'];
+
+  const fotos = formatR2Urls(rawFotos);
 
   const fotoPrincipal = fotos[selectedPhotoIndex] || fotos[0];
 
@@ -514,7 +517,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-800 border-2 border-sky-500/40 shrink-0">
                   <img
-                    src={anunciante?.foto_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80'}
+                    src={formatR2Url(anunciante?.foto_url) || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80'}
                     alt={anunciante?.nome_completo || 'Anunciante'}
                     className="w-full h-full object-cover"
                   />
@@ -597,7 +600,7 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {imoveisSimilares.map((item) => {
-              const itemFotos = item.fotos || [];
+              const itemFotos = formatR2Urls(item.fotos || []);
               const itemCapa = itemFotos.length > 0 ? itemFotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
               const itemPreco = formatarPreco(item.preco);
 

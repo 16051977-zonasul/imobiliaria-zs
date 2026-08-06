@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { formatR2Url, formatR2Urls } from '@/lib/imageUtils';
 import { 
   User, 
   Phone, 
@@ -130,7 +131,7 @@ export default function AnunciantePublicPage({ params: paramsPromise }) {
           <div className="flex items-center gap-6">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden bg-slate-950 border-2 border-sky-500/40 shrink-0 shadow-xl">
               <img
-                src={anunciante?.foto_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80'}
+                src={formatR2Url(anunciante?.foto_url) || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80'}
                 alt={anunciante?.nome_completo}
                 className="w-full h-full object-cover"
               />
@@ -199,7 +200,7 @@ export default function AnunciantePublicPage({ params: paramsPromise }) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {imoveisAnunciante.map((imovel) => {
-              const fotos = imovel.fotos || [];
+              const fotos = formatR2Urls(imovel.fotos || []);
               const capa = fotos.length > 0 ? fotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
               const precoFormatted = formatarPreco(imovel.preco);
 

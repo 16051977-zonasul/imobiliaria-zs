@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { formatR2Url, formatR2Urls } from '@/lib/imageUtils';
 import { 
   Search, 
   MapPin, 
@@ -201,9 +202,10 @@ export default function CatalogPage() {
     return matchSearch && matchTransacao && matchTipo && matchBairro && matchQuartos;
   });
 
-  function abrirGaleria(fotos) {
-    if (!fotos || fotos.length === 0) return;
-    setCurrentGallery(fotos);
+  function abrirGaleria(rawFotos) {
+    if (!rawFotos || rawFotos.length === 0) return;
+    const sanitized = formatR2Urls(rawFotos);
+    setCurrentGallery(sanitized);
     setCurrentPhotoIndex(0);
     setModalOpen(true);
   }
@@ -382,7 +384,7 @@ export default function CatalogPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {imoveisFiltrados.map((imovel) => {
-            const fotos = imovel.fotos || [];
+            const fotos = formatR2Urls(imovel.fotos || []);
             const capa = fotos.length > 0 ? fotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
             const precoFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(imovel.preco || 0);
 

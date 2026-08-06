@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { convertToWebP, uploadFileToR2 } from '@/lib/imageUtils';
+import { convertToWebP, uploadFileToR2, formatR2Url, formatR2Urls } from '@/lib/imageUtils';
 import { 
   Building2, 
   UploadCloud, 
@@ -165,7 +165,7 @@ function AdminFormContent() {
             id: `remote_${idx}_${Date.now()}`,
             file: null,
             previewUrl: null,
-            remoteUrl: url,
+            remoteUrl: formatR2Url(url),
           }));
           setSelectedFotos(existingPhotos);
           setCoverPhotoIndex(0);

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { formatR2Url, formatR2Urls } from '@/lib/imageUtils';
 import { 
   Building2, 
   User, 
@@ -622,7 +623,7 @@ function PerfilPageInner() {
                 <div className="relative group shrink-0">
                   <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-800 border-2 border-sky-500/40 flex items-center justify-center text-slate-400">
                     {profile.foto_url ? (
-                      <img src={profile.foto_url} alt={profile.nome_completo} className="w-full h-full object-cover" />
+                      <img src={formatR2Url(profile.foto_url)} alt={profile.nome_completo} className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-10 h-10 text-slate-500" />
                     )}
@@ -924,7 +925,7 @@ function PerfilPageInner() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {meusImoveis.map((imovel) => {
-              const fotos = imovel.fotos || [];
+              const fotos = formatR2Urls(imovel.fotos || []);
               const capa = fotos.length > 0 ? fotos[0] : 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80';
               const precoFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(imovel.preco || 0);
 
