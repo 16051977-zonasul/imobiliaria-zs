@@ -228,7 +228,10 @@ function AdminFormContent() {
     }
   }
 
-  // Envio do formulário: Conversão WebP + Upload R2 ANTES do Insert/Update no Supabase
+  // Envio do formulário — Fluxo Step-by-Step para evitar imagens órfãs no R2:
+  // STEP 1: INSERT dos dados textuais no Supabase (falha rápida, sem nenhum upload)
+  // STEP 2: Upload das fotos para o Cloudflare R2 usando o ID retornado
+  // STEP 3: UPDATE do registro no Supabase com as URLs das fotos gravadas
   async function handleSubmit(e) {
     e.preventDefault();
     setFeedback(null);
@@ -239,68 +242,15 @@ function AdminFormContent() {
     }
 
     setSubmitting(true);
-    setFeedback({ type: 'loading', message: 'Otimizando imagens e enviando mídias ao sistema.....' });
 
     try {
-      const finalR2Urls = [];
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 1 — Insere/atualiza os dados textuais no Supabase SEM fotos.
+      // Se falhar aqui, nenhum upload para o R2 é realizado.
+      // ─────────────────────────────────────────────────────────────────────
+      setFeedback({ type: 'loading', message: 'Salvando dados do imóvel no catálogo...' });
 
-      // 1. Processa cada foto selecionada (Conversão WebP + Upload R2)
-      for (let i = 0; i < selectedFotos.length; i++) {
-        const item = selectedFotos[i];
-
-        // Se a foto já for uma URL pública do R2 (ex: edição)
-        if (item.remoteUrl && (item.remoteUrl.startsWith('http://') || item.remoteUrl.startsWith('https://')) && !item.remoteUrl.startsWith('blob:')) {
-          finalR2Urls.push(item.remoteUrl);
-          continue;
-        }
-
-        // Se for um arquivo novo selecionado pelo usuário
-        if (item.file) {
-          setFeedback({ 
-            type: 'loading', 
-            message: `Otimizando e enviando imagem ${i + 1} de ${selectedFotos.length} em WebP para o sistema.....` 
-          });
-
-          // a. Converte/comprime imagem para .webp via Canvas
-          const webpFile = await convertToWebP(item.file, 0.85);
-
-          // b. Faz upload para o Cloudflare R2 e recupera URL pública oficial
-          const r2PublicUrl = await uploadFileToR2(webpFile);
-
-          if (r2PublicUrl && (r2PublicUrl.startsWith('http://') || r2PublicUrl.startsWith('https://')) && !r2PublicUrl.startsWith('blob:')) {
-            finalR2Urls.push(r2PublicUrl);
-          } else {
-            console.warn(`[Aviso] Falha ao obter URL pública para ${item.file.name}`);
-          }
-        }
-      }
-
-      // 2. Garante que nenhuma URL temporária do tipo blob: seja enviada ao banco de dados
-      const cleanFotosR2 = finalR2Urls.filter(
-        (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:')
-      );
-
-      if (selectedFotos.length > 0 && cleanFotosR2.length === 0) {
-        setFeedback({ 
-          type: 'error', 
-          message: 'Falha ao enviar fotos ao sistema. Verifique suas credenciais no .env.local.' 
-        });
-        setSubmitting(false);
-        return;
-      }
-
-      // Reordena o array para colocar a foto definida como Capa/Destaque no índice 0
-      if (coverPhotoIndex > 0 && coverPhotoIndex < cleanFotosR2.length) {
-        const coverUrl = cleanFotosR2.splice(coverPhotoIndex, 1)[0];
-        cleanFotosR2.unshift(coverUrl);
-      }
-
-      console.log('📸 [FOTOS PUBLICAS ENVIADAS AO SUPABASE (CAPA PRIMEIRO)]:', cleanFotosR2);
-
-      setFeedback({ type: 'loading', message: 'Gravando dados do imóvel no catálogo.....' });
-
-      // 3. Monta o payload final (contendo id para edição se existir)
-      const payload = {
+      const textPayload = {
         ...(editingId ? { id: editingId } : {}),
         usuario_id: user?.id,
         titulo: formData.titulo,
@@ -316,23 +266,117 @@ function AdminFormContent() {
         banheiros: formData.banheiros,
         vagas: formData.vagas,
         area_m2: formData.area_m2,
-        fotos: cleanFotosR2
+        fotos: [], // fotos vazias na inserção inicial
       };
 
-      const res = await fetch('/api/salvar-imovel', {
+      const insertRes = await fetch('/api/salvar-imovel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(textPayload),
       });
 
-      const data = await res.json();
+      const insertData = await insertRes.json();
 
-      if (res.ok && data.success) {
-        setFeedback(null);
-        setShowSuccessModal(true);
-      } else {
-        setFeedback({ type: 'error', message: data.error || 'Erro ao cadastrar imóvel.' });
+      if (!insertRes.ok || !insertData.success) {
+        // ❌ Supabase rejeitou — para tudo, exibe o erro, R2 intacto
+        setFeedback({ type: 'error', message: insertData.error || 'Erro ao salvar dados no banco de dados.' });
+        setSubmitting(false);
+        return;
       }
+
+      // ID gerado pelo Supabase (novo cadastro) ou o ID existente (edição)
+      const imovelId = insertData.imovel?.id || editingId;
+
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 2 — Supabase OK. Agora faz upload das fotos novas para o R2.
+      // Fotos já remotas (edição) são reutilizadas sem novo upload.
+      // ─────────────────────────────────────────────────────────────────────
+      const finalR2Urls = [];
+      const newFiles = selectedFotos.filter((item) => item.file); // somente arquivos locais
+      const existingUrls = selectedFotos
+        .filter((item) => item.remoteUrl && item.remoteUrl.startsWith('http') && !item.remoteUrl.startsWith('blob:'))
+        .map((item) => item.remoteUrl);
+
+      for (let i = 0; i < selectedFotos.length; i++) {
+        const item = selectedFotos[i];
+
+        // Foto já remota (R2) — reutiliza sem re-upload
+        if (item.remoteUrl && item.remoteUrl.startsWith('http') && !item.remoteUrl.startsWith('blob:')) {
+          finalR2Urls.push(item.remoteUrl);
+          continue;
+        }
+
+        // Arquivo novo — converte para WebP e faz upload
+        if (item.file) {
+          const uploadIndex = newFiles.indexOf(item) + 1;
+          setFeedback({
+            type: 'loading',
+            message: `Otimizando e enviando imagem ${uploadIndex} de ${newFiles.length} para o sistema...`,
+          });
+
+          try {
+            const webpFile = await convertToWebP(item.file, 0.85);
+            const r2PublicUrl = await uploadFileToR2(webpFile);
+
+            if (r2PublicUrl && r2PublicUrl.startsWith('http') && !r2PublicUrl.startsWith('blob:')) {
+              finalR2Urls.push(r2PublicUrl);
+            } else {
+              console.warn(`[R2] Falha ao obter URL pública para ${item.file.name}`);
+            }
+          } catch (uploadErr) {
+            console.error(`[R2] Erro no upload de ${item.file.name}:`, uploadErr);
+            // Continua para as próximas — não aborta o fluxo inteiro por uma foto
+          }
+        }
+      }
+
+      // Sanitiza: remove qualquer blob: residual
+      const cleanFotosR2 = finalR2Urls.filter(
+        (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:')
+      );
+
+      // Coloca a foto de capa no índice 0
+      if (coverPhotoIndex > 0 && coverPhotoIndex < cleanFotosR2.length) {
+        const coverUrl = cleanFotosR2.splice(coverPhotoIndex, 1)[0];
+        cleanFotosR2.unshift(coverUrl);
+      }
+
+      console.log(`📸 [R2] ${cleanFotosR2.length} fotos enviadas para o imóvel ID ${imovelId}:`, cleanFotosR2);
+
+      // ─────────────────────────────────────────────────────────────────────
+      // STEP 3 — Atualiza o registro no Supabase com as URLs das fotos.
+      // ─────────────────────────────────────────────────────────────────────
+      if (cleanFotosR2.length > 0 || existingUrls.length > 0) {
+        setFeedback({ type: 'loading', message: 'Vinculando fotos ao anúncio...' });
+
+        const patchRes = await fetch('/api/salvar-imovel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'patch-photos',
+            id: imovelId,
+            fotos: cleanFotosR2,
+          }),
+        });
+
+        const patchData = await patchRes.json();
+
+        if (!patchRes.ok || !patchData.success) {
+          // Fotos não salvas no banco, mas o anúncio já existe — avisa o usuário
+          console.error('[PATCH-FOTOS] Erro ao salvar URLs das fotos:', patchData.error);
+          setFeedback({
+            type: 'error',
+            message: 'Anúncio salvo, mas houve um erro ao vincular as fotos. Edite o anúncio para adicioná-las novamente.',
+          });
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // ✅ Tudo certo
+      setFeedback(null);
+      setShowSuccessModal(true);
+
     } catch (err) {
       console.error('Erro no envio do formulário:', err);
       setFeedback({ type: 'error', message: err.message || 'Erro na conexão com o servidor.' });

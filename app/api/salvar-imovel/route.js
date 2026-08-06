@@ -6,6 +6,7 @@ export async function POST(request) {
     const body = await request.json();
     const { 
       id,
+      usuario_id,
       titulo, 
       descricao, 
       tipo, 
@@ -21,10 +22,23 @@ export async function POST(request) {
       area_m2, 
       fotos,
       destaque,
-      ativo
+      ativo,
+      mode // 'full' or 'patch-photos'
     } = body;
 
-    // Validação de campos essenciais
+    // Modo: Patch de fotos apenas
+    if (mode === 'patch-photos' && id) {
+      const { data, error } = await supabase
+        .from('imoveis')
+        .update({ fotos })
+        .eq('id', id)
+        .select();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, imovel: data[0] });
+    }
+
+    // Validação de campos essenciais para inserção completa
     if (!titulo || !preco) {
       return NextResponse.json(
         { error: 'Título e Preço são campos obrigatórios.' },
@@ -32,15 +46,12 @@ export async function POST(request) {
       );
     }
 
-    // Trava de Sanitização Estrita: Filtra e remove qualquer URL temporária blob: ou data:
     const cleanFotos = (Array.isArray(fotos) ? fotos : []).filter(
       (url) => typeof url === 'string' && url.length > 0 && !url.startsWith('blob:') && !url.startsWith('data:')
     );
 
-    console.log(`🔒 [SALVAR IMOVEL] Fotos sanitizadas enviadas para o Supabase (${cleanFotos.length}):`, cleanFotos);
-
-    // Payload estritamente adaptado às colunas válidas da tabela imoveis (sem usuario_id)
     const payload = {
+      usuario_id,
       titulo,
       descricao: descricao || '',
       tipo: tipo || 'Apartamento',
@@ -61,36 +72,25 @@ export async function POST(request) {
 
     let resultData;
     if (id) {
-      console.log(`📝 [SALVAR IMOVEL] Atualizando imóvel ID: ${id}`);
       const { data, error } = await supabase
         .from('imoveis')
         .update(payload)
         .eq('id', id)
         .select();
 
-      if (error) {
-        console.error('Erro no Supabase ao atualizar imóvel:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       resultData = data && data.length > 0 ? data[0] : { id, ...payload };
     } else {
-      console.log('✨ [SALVAR IMOVEL] Cadastrando novo imóvel');
       const { data, error } = await supabase
         .from('imoveis')
         .insert([payload])
         .select();
 
-      if (error) {
-        console.error('Erro no Supabase ao inserir imóvel:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       resultData = data && data.length > 0 ? data[0] : payload;
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      imovel: resultData 
-    });
+    return NextResponse.json({ success: true, imovel: resultData });
 
   } catch (error) {
     console.error('Erro na Rota /api/salvar-imovel:', error);
