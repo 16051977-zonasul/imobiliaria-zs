@@ -399,7 +399,7 @@ export default function CadastroPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Telefone / WhatsApp
+                  Telefone / WhatsApp *
                 </label>
                 <div className="relative flex items-center">
                   <Phone className="absolute left-4 w-5 h-5 text-slate-500 pointer-events-none" />
@@ -410,6 +410,7 @@ export default function CadastroPage() {
                     onChange={handleChange}
                     placeholder="(21) 99999-9999"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-12 pr-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    required
                   />
                 </div>
               </div>

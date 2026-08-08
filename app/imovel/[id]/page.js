@@ -350,6 +350,44 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
         </div>
       </div>
 
+      {/* HEADER DO IMÓVEL: Bairro, Título e Preço (aparece ANTES das fotos) */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 backdrop-blur-md shadow-xl">
+        <div className="flex items-center gap-2 text-sky-400 text-xs font-bold uppercase tracking-wider">
+          <MapPin className="w-4 h-4 text-sky-400" />
+          <span>{imovel.bairro || 'Zona Sul'}, Rio de Janeiro</span>
+        </div>
+
+        <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+          {imovel.titulo}
+        </h1>
+
+        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 border-t border-slate-800/80 pt-4">
+          <div>
+            <span className="text-xs text-slate-400 font-medium block mb-1">Valor do Imóvel</span>
+            <span className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">
+              {precoTexto}
+            </span>
+          </div>
+
+          {(imovel.condominio > 0 || imovel.iptu > 0) && (
+            <div className="flex gap-4 text-xs font-medium text-slate-300 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-2xl">
+              {imovel.condominio > 0 && (
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Condomínio</span>
+                  <span>R$ {imovel.condominio}</span>
+                </div>
+              )}
+              {imovel.iptu > 0 && (
+                <div>
+                  <span className="text-slate-500 block text-[10px]">IPTU</span>
+                  <span>R$ {imovel.iptu}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* GALERIA DE FOTOS (FOTO PRINCIPAL + THUMBNAILS DAS IMAGENS DO R2) */}
       <div className="space-y-4">
         {/* Foto Principal */}
@@ -399,49 +437,11 @@ export default function ImovelDetailPage({ params: paramsPromise }) {
         )}
       </div>
 
-      {/* CONTEÚDO PRINCIPAL (INFORMAÇÕES + SIDEBAR ANUNCIANTE & WHATSAPP) */}
+      {/* CONTEÚDO PRINCIPAL (ATRIBUTOS + DESCRIÇÃO + SIDEBAR ANUNCIANTE & WHATSAPP) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Coluna Esquerda: Título, Valores, Atributos & Descrição Detalhada */}
+        {/* Coluna Esquerda: Atributos & Descrição Detalhada */}
         <div className="lg:col-span-8 space-y-8">
-          
-          {/* Header do Imóvel */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 backdrop-blur-md shadow-xl">
-            <div className="flex items-center gap-2 text-sky-400 text-xs font-bold uppercase tracking-wider">
-              <MapPin className="w-4 h-4 text-sky-400" />
-              <span>{imovel.bairro || 'Zona Sul'}, Rio de Janeiro</span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-              {imovel.titulo}
-            </h1>
-
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 border-t border-slate-800/80 pt-4">
-              <div>
-                <span className="text-xs text-slate-400 font-medium block mb-1">Valor do Imóvel</span>
-                <span className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">
-                  {precoTexto}
-                </span>
-              </div>
-
-              {(imovel.condominio > 0 || imovel.iptu > 0) && (
-                <div className="flex gap-4 text-xs font-medium text-slate-300 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-2xl">
-                  {imovel.condominio > 0 && (
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">Condomínio</span>
-                      <span>R$ {imovel.condominio}</span>
-                    </div>
-                  )}
-                  {imovel.iptu > 0 && (
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">IPTU</span>
-                      <span>R$ {imovel.iptu}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Atributos Técnicos em Destaque (Quartos, Banheiros, Metragem, Vagas) */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 backdrop-blur-md shadow-xl">

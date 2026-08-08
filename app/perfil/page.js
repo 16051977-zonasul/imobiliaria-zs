@@ -62,6 +62,7 @@ function PerfilPageInner() {
     nome_completo: '',
     telefone: '',
     redes_sociais: '',
+    link_airbnb: '',
     tipo_anunciante: 'Sou Corretor(a)',
     creci: '',
     bio: '',
@@ -135,6 +136,7 @@ function PerfilPageInner() {
           nome_completo: profileData.nome_completo || user.user_metadata?.nome_completo || '',
           telefone: profileData.telefone || user.user_metadata?.telefone || '',
           redes_sociais: profileData.redes_sociais || '',
+          link_airbnb: profileData.link_airbnb || '',
           tipo_anunciante: profileData.tipo_anunciante || 'Sou Corretor(a)',
           creci: profileData.creci || '',
           bio: profileData.bio || '',
@@ -226,6 +228,7 @@ function PerfilPageInner() {
         nome_completo: profile.nome_completo,
         telefone: profile.telefone,
         redes_sociais: profile.redes_sociais,
+        link_airbnb: profile.link_airbnb,
         tipo_anunciante: profile.tipo_anunciante,
         creci: profile.tipo_anunciante === 'Sou Corretor(a)' ? profile.creci : '',
         bio: profile.bio,
@@ -685,7 +688,7 @@ function PerfilPageInner() {
                 </div>
               </div>
 
-              {/* Redes Sociais e Tipo de Anunciante */}
+              {/* Redes Sociais, Link AirBnB e Tipo de Anunciante */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
@@ -718,6 +721,24 @@ function PerfilPageInner() {
                     <option value="Sou Corretor(a)">Sou Corretor(a)</option>
                     <option value="Sou Administrador(a)">Sou Administrador(a)</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Link Airbnb */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Link do Airbnb (opcional)
+                </label>
+                <div className="relative flex items-center">
+                  <Globe className="absolute left-4 w-4 h-4 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="link_airbnb"
+                    value={profile.link_airbnb}
+                    onChange={handleProfileChange}
+                    placeholder="airbnb.com.br/users/show/XXXXXX"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
                 </div>
               </div>
 

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   documento_url TEXT,
   foto_url TEXT,
   redes_sociais TEXT,
+  link_airbnb TEXT,
   tipo_anunciante TEXT DEFAULT 'Sou Corretor(a)',
   creci TEXT,
   bio TEXT,
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Adiciona novas colunas caso a tabela já existisse anteriormente
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS foto_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS redes_sociais TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS link_airbnb TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tipo_anunciante TEXT DEFAULT 'Sou Corretor(a)';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS creci TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;

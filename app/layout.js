@@ -6,6 +6,11 @@ export const metadata = {
   title: 'Imóveis Zona Sul Rio de Janeiro | Copacabana, Ipanema, Leblon',
   description: 'Encontre os melhores apartamentos, coberturas e imóveis de luxo em Copacabana, Ipanema, Leblon, Botafogo e em toda a Zona Sul do Rio de Janeiro.',
   keywords: 'Imóveis Rio de Janeiro, Zona Sul RJ, Copacabana, Ipanema, Leblon, Botafogo, Apartamentos Rio, zonasulriodejaneiro',
+  icons: {
+    icon: 'https://zonasulriodejaneiro.com.br/favicon.ico',
+    apple: 'https://zonasulriodejaneiro.com.br/apple-touch-icon.png',
+    shortcut: 'https://zonasulriodejaneiro.com.br/favicon.ico',
+  },
   openGraph: {
     title: 'Imóveis Zona Sul Rio de Janeiro | zonasulriodejaneiro',
     description: 'Catálogo de imóveis selecionados na Zona Sul do RJ.',
